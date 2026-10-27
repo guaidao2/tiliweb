@@ -1,0 +1,28 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">账户</p>
+      <h1>{{.User.DisplayName}}</h1>
+    </div>
+    <span class="badge badge-{{.User.Status}}">{{statusLabel .User.Status}}</span>
+  </div>
+
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+
+  <dl class="meta">
+    <div><dt>用户名</dt><dd>{{.User.Username}}</dd></div>
+    <div><dt>邮箱</dt><dd>{{.User.Email}}</dd></div>
+    <div><dt>状态</dt><dd>{{statusLabel .User.Status}}</dd></div>
+  </dl>
+
+  <div class="actions">
+    <a class="button" href="{{.BasePath}}/account/password">修改密码</a>
+    <form class="inline" method="post" action="{{.BasePath}}/logout">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      <button class="button ghost" type="submit">退出登录</button>
+    </form>
+  </div>
+</section>
+{{end}}

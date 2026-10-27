@@ -1,0 +1,46 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>留言</h1></div><span class="muted">{{.NewMessages}} 条新留言</span></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="get" action="{{.BasePath}}{{.AdminPath}}/messages">
+    <label>状态
+      <select name="status">
+        <option value="">全部</option>
+        <option value="new" {{if eq .MessageFilter "new"}}selected{{end}}>新留言</option>
+        <option value="read" {{if eq .MessageFilter "read"}}selected{{end}}>已读</option>
+        <option value="replied" {{if eq .MessageFilter "replied"}}selected{{end}}>已回复</option>
+        <option value="spam" {{if eq .MessageFilter "spam"}}selected{{end}}>垃圾</option>
+      </select>
+    </label>
+    <button class="button small" type="submit">筛选</button>
+  </form>
+  {{if .Messages}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>来自</th><th>留言</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Messages}}
+      <tr>
+        <td>{{.ID}}<br><span class="muted">{{unixTime .CreatedAt}}</span></td>
+        <td><strong>{{.Name}}</strong>{{if .Company}}<br>{{.Company}}{{end}}<br><span class="muted">{{.Email}}{{if .Phone}} · {{.Phone}}{{end}}</span></td>
+        <td><strong>{{.Subject}}</strong><p>{{.Message}}</p><span class="muted">{{.SourcePage}} {{.IP}}</span></td>
+        <td><span class="badge">{{statusLabel .Status}}</span>{{if .AdminNote}}<br><span class="muted">{{.AdminNote}}</span>{{end}}</td>
+        <td class="table-actions">
+          <form class="form" method="post" action="{{$.BasePath}}{{$.AdminPath}}/messages/{{.ID}}/status">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <select name="status">
+              <option value="new" {{if eq .Status "new"}}selected{{end}}>新留言</option>
+              <option value="read" {{if eq .Status "read"}}selected{{end}}>已读</option>
+              <option value="replied" {{if eq .Status "replied"}}selected{{end}}>已回复</option>
+              <option value="spam" {{if eq .Status "spam"}}selected{{end}}>垃圾</option>
+            </select>
+            <input name="note" value="{{.AdminNote}}" placeholder="备注">
+            <button class="button small" type="submit">保存</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无留言。</p>{{end}}
+</section>
+{{end}}

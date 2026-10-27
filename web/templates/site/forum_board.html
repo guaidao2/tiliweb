@@ -1,0 +1,42 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="muted"><a href="{{.BasePath}}/forum">论坛</a> / {{.Board.Name}}</p>
+  <div class="page-head">
+    <div><p class="eyebrow">板块</p><h1>{{.Board.Name}}</h1></div>
+    <span class="badge">{{if eq .Board.Visibility "members"}}仅会员{{else}}公开{{end}}</span>
+  </div>
+  {{if .Board.Description}}<p class="lede">{{.Board.Description}}</p>{{end}}
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+
+  {{if .Topics}}
+  <table class="table">
+    <thead><tr><th>主题</th><th>作者</th><th>回复</th><th>最后回复</th></tr></thead>
+    <tbody>
+      {{range .Topics}}
+      <tr>
+        <td>
+          {{if .Pinned}}<span class="badge">置顶</span>{{end}}
+          {{if eq .Status "locked"}}<span class="badge">已锁定</span>{{end}}
+          <a href="{{$.BasePath}}/forum/{{$.Board.Slug}}/{{.ID}}">{{.Title}}</a>
+        </td>
+        <td>{{.AuthorName}}<br><span class="muted">{{unixTime .CreatedAt}}</span></td>
+        <td>{{.ReplyCount}}</td>
+        <td>{{if .LastPostName}}{{.LastPostName}}{{else}}-{{end}}<br><span class="muted">{{unixTime .LastPostAt}}</span></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无主题。</p>{{end}}
+
+  {{if .SignedIn}}
+  <div class="section-head"><h2>发布新主题</h2></div>
+  <form class="form" method="post" action="{{.BasePath}}/forum/{{.Board.Slug}}/new">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>标题 <input name="title" required maxlength="200"></label>
+    <label>正文 <textarea name="body" rows="6" required></textarea></label>
+    <button class="button" type="submit">发布主题</button>
+  </form>
+  {{else}}<p class="muted"><a href="{{.BasePath}}/login">登录</a>后可以发主题。</p>{{end}}
+</section>
+{{end}}

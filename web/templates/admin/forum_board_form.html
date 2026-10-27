@@ -1,0 +1,27 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">论坛</p><h1>{{if .Board.ID}}编辑板块{{else}}新建板块{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/forum/boards">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/forum/boards/{{if .Board.ID}}{{.Board.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>别名 <input name="slug" value="{{.Board.Slug}}" required></label>
+    <label>名称 <input name="name" value="{{.Board.Name}}" required></label>
+    <label>描述 <textarea name="description" rows="2">{{.Board.Description}}</textarea></label>
+    <label>可见性
+      <select name="visibility">
+        <option value="public" {{if eq .Board.Visibility "public"}}selected{{end}}>公开</option>
+        <option value="members" {{if eq .Board.Visibility "members"}}selected{{end}}>仅会员</option>
+      </select>
+    </label>
+    <label>状态
+      <select name="status">
+        <option value="active" {{if eq .Board.Status "active"}}selected{{end}}>启用</option>
+        <option value="hidden" {{if eq .Board.Status "hidden"}}selected{{end}}>隐藏</option>
+      </select>
+    </label>
+    <label>排序 <input type="number" name="sort_order" value="{{.Board.SortOrder}}"></label>
+    <button class="button" type="submit">保存板块</button>
+    {{if .Board.ID}}<a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/forum/boards/{{.Board.ID}}/moderators">版主管理</a>{{end}}
+  </form>
+</section>
+{{end}}

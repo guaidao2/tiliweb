@@ -1,0 +1,54 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Locale}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}}</title>
+  <meta name="description" content="{{.Description}}">
+  {{if .Canonical}}<link rel="canonical" href="{{.Canonical}}">{{end}}
+  <meta property="og:type" content="{{if .OGType}}{{.OGType}}{{else}}website{{end}}">
+  <meta property="og:title" content="{{.Title}}">
+  <meta property="og:description" content="{{.Description}}">
+  {{if .Canonical}}<meta property="og:url" content="{{.Canonical}}">{{end}}
+  {{if .OGImage}}<meta property="og:image" content="{{.OGImage}}">{{end}}
+  <meta name="twitter:card" content="{{if .OGImage}}summary_large_image{{else}}summary{{end}}">
+  <meta name="twitter:title" content="{{.Title}}">
+  <meta name="twitter:description" content="{{.Description}}">
+  <link rel="alternate" type="application/rss+xml" title="{{.SiteName}} RSS" href="{{.BasePath}}/rss.xml">
+  <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
+  {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{.BasePath}}/">{{.SiteName}}</a>
+    <nav class="nav" aria-label="主导航">
+      <a href="{{.BasePath}}/">首页</a>
+      {{range .NavChannels}}{{if .ShowInNav}}<a href="{{$.BasePath}}/{{.Slug}}">{{.Name}}</a>{{end}}{{end}}
+      {{range .NavPages}}{{if .ShowInNav}}<a href="{{$.BasePath}}/{{.Slug}}">{{.Title}}</a>{{end}}{{end}}
+      <a href="{{.BasePath}}/search">搜索</a>
+      <a href="{{.BasePath}}/contact">联系我们</a>
+      <a href="{{.BasePath}}/forum">论坛</a>
+      {{if .SignedIn}}
+      <a href="{{.BasePath}}/account">我的账户</a>
+      {{else}}
+      <a href="{{.BasePath}}/login">登录</a>
+      {{end}}
+    </nav>
+  </header>
+
+  <main class="site-main">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer">
+    <span>{{.SiteName}}</span>
+    <span>
+      {{if .SiteSettings.Contact.Email}}<a href="mailto:{{.SiteSettings.Contact.Email}}">{{.SiteSettings.Contact.Email}}</a>{{end}}
+      {{if .SiteSettings.Contact.Phone}} · {{.SiteSettings.Contact.Phone}}{{end}}
+      {{if .FriendLinks}} · <a href="{{.BasePath}}/links">友情链接</a>{{end}}
+    </span>
+    <span>v{{.Version}} · {{.Year}}</span>
+  </footer>
+</body>
+</html>
+{{end}}

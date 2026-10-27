@@ -1,0 +1,28 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>{{if .Page.ID}}编辑页面{{else}}新建页面{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/pages">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/pages/{{if .Page.ID}}{{.Page.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>标题 <input name="title" value="{{.Page.Title}}" required></label>
+    <label>别名 <input name="slug" value="{{.Page.Slug}}" required></label>
+    <label>正文（Markdown） <textarea name="body_md" rows="16">{{.Page.BodyMD}}</textarea></label>
+    <label>模板 <input name="template" value="{{.Page.Template}}"></label>
+    <label>状态
+      <select name="status">
+        <option value="draft" {{if eq .Page.Status "draft"}}selected{{end}}>草稿</option>
+        <option value="published" {{if eq .Page.Status "published"}}selected{{end}}>已发布</option>
+        <option value="archived" {{if eq .Page.Status "archived"}}selected{{end}}>已归档</option>
+      </select>
+    </label>
+    <label>排序 <input type="number" name="sort_order" value="{{.Page.SortOrder}}"></label>
+    <label><span><input type="checkbox" name="show_in_nav" value="1" {{if .Page.ShowInNav}}checked{{end}}> 显示在导航</span></label>
+    <label>SEO 标题 <input name="seo_title" value="{{.Page.SEOTitle}}"></label>
+    <label>SEO 描述 <textarea name="seo_description" rows="2">{{.Page.SEODescription}}</textarea></label>
+    <div class="actions">
+      <button class="button" type="submit">保存页面</button>
+      {{if .Page.ID}}<a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/pages/{{.Page.ID}}/revisions">修订记录</a>{{end}}
+    </div>
+  </form>
+</section>
+{{end}}

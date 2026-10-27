@@ -1,0 +1,26 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>媒体库</h1></div></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="post" action="{{.BasePath}}{{.AdminPath}}/media/upload" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>图片 <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp" required></label>
+    <button class="button" type="submit">上传</button>
+  </form>
+  {{if .Media}}
+  <div class="cards">
+    {{range .Media}}
+    <article class="card">
+      <img src="{{$.BasePath}}/media/{{.ID}}/{{.OriginalName}}" alt="{{.OriginalName}}" style="max-width:100%;border-radius:8px">
+      <h2>{{.OriginalName}}</h2>
+      <p class="muted">#{{.ID}} · {{.MIME}} · {{.Width}}×{{.Height}} · {{.Size}} 字节</p>
+      <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/media/{{.ID}}/delete">
+        <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+        <button class="button small danger" type="submit">删除</button>
+      </form>
+    </article>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">暂无媒体。</p>{{end}}
+</section>
+{{end}}

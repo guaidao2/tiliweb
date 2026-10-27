@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>{{if .Banner.ID}}编辑轮播{{else}}新建轮播{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/banners">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/banners/{{if .Banner.ID}}{{.Banner.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>标题 <input name="title" value="{{.Banner.Title}}" required></label>
+    <label>副标题 <input name="subtitle" value="{{.Banner.Subtitle}}"></label>
+    <label>图片媒体 ID <input type="number" name="image_media_id" value="{{.Banner.ImageMediaID}}"></label>
+    <label>链接地址 <input name="link_url" value="{{.Banner.LinkURL}}" placeholder="/contact 或 https://..."></label>
+    <label>按钮文字 <input name="button_text" value="{{.Banner.ButtonText}}"></label>
+    <label>排序 <input type="number" name="sort_order" value="{{.Banner.SortOrder}}"></label>
+    <label><span><input type="checkbox" name="enabled" value="1" {{if .Banner.Enabled}}checked{{end}}> 启用</span></label>
+    <button class="button" type="submit">保存轮播</button>
+  </form>
+</section>
+{{end}}

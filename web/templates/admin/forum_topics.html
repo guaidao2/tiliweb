@@ -1,0 +1,34 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">论坛</p><h1>主题</h1></div></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Topics}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>主题</th><th>板块</th><th>作者</th><th>回复</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Topics}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><a href="{{$.BasePath}}/forum/{{.BoardSlug}}/{{.ID}}">{{.Title}}</a>{{if .Pinned}} <span class="badge">置顶</span>{{end}}</td>
+        <td>{{.BoardName}}</td>
+        <td>{{.AuthorName}}</td>
+        <td>{{.ReplyCount}}</td>
+        <td><span class="badge">{{statusLabel .Status}}</span></td>
+        <td class="table-actions">
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/forum/topics/{{.ID}}/moderate">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <select name="action">
+              <option value="pin">置顶</option><option value="unpin">取消置顶</option>
+              <option value="lock">锁定</option><option value="unlock">解锁</option>
+              <option value="delete">删除</option><option value="restore">恢复</option>
+            </select>
+            <button class="button small" type="submit">执行</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无主题。</p>{{end}}
+</section>
+{{end}}

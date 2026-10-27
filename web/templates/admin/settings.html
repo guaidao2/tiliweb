@@ -1,0 +1,31 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>站点设置</h1></div></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/settings">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <p class="muted">站点名称、描述、联系信息、SEO 和联系页文案可在这里修改；导航、按钮等固定界面文案已默认中文化。</p>
+    <h2>站点</h2>
+    <label>站点名称 <input name="site_name" value="{{.SiteSettings.SiteName}}" required></label>
+    <label>站点描述 <textarea name="site_description" rows="2">{{.SiteSettings.SiteDescription}}</textarea></label>
+
+    <h2>联系方式</h2>
+    <label>电话 <input name="contact_phone" value="{{.SiteSettings.Contact.Phone}}"></label>
+    <label>邮箱 <input name="contact_email" value="{{.SiteSettings.Contact.Email}}"></label>
+    <label>地址 <input name="contact_address" value="{{.SiteSettings.Contact.Address}}"></label>
+    <label>地图链接 <input name="contact_map_url" value="{{.SiteSettings.Contact.MapURL}}"></label>
+    <label>微信二维码媒体 ID <input type="number" name="contact_wechat_qr_media_id" value="{{.SiteSettings.Contact.WeChatQRMediaID}}"></label>
+
+    <h2>SEO</h2>
+    <label>默认标题 <input name="seo_default_title" value="{{.SiteSettings.SEO.DefaultTitle}}"></label>
+    <label>默认描述 <textarea name="seo_default_description" rows="2">{{.SiteSettings.SEO.DefaultDescription}}</textarea></label>
+    <label>OG 图片媒体 ID <input type="number" name="seo_og_image_media_id" value="{{.SiteSettings.SEO.OGImageMediaID}}"></label>
+    <label>robots.txt 附加内容 <textarea name="seo_robots_extra" rows="2">{{.SiteSettings.SEO.RobotsExtra}}</textarea></label>
+
+    <h2>联系页</h2>
+    <label>Markdown 文案 <textarea name="contact_page_md" rows="10">{{.SiteSettings.ContactPageMD}}</textarea></label>
+    <button class="button" type="submit">保存设置</button>
+  </form>
+</section>
+{{end}}

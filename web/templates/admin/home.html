@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>首页模块</h1></div><a class="button ghost" href="{{.BasePath}}/" target="_blank">查看站点</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/home">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label><span><input type="checkbox" name="show_banners" value="1" {{if .HomeSettings.ShowBanners}}checked{{end}}> 显示 Banner 轮播</span></label>
+    <label>最新内容数量 <input type="number" name="latest_count" min="1" max="50" value="{{.HomeSettings.LatestCount}}"></label>
+    <label>精选内容数量 <input type="number" name="featured_count" min="1" max="50" value="{{.HomeSettings.FeaturedCount}}"></label>
+    <label>行动按钮标题 <input name="cta_title" value="{{.HomeSettings.CTATitle}}"></label>
+    <label>行动按钮文案 <textarea name="cta_text" rows="2">{{.HomeSettings.CTAText}}</textarea></label>
+    <label>行动按钮链接 <input name="cta_url" value="{{.HomeSettings.CTAURL}}" placeholder="/contact"></label>
+    <button class="button" type="submit">保存首页模块</button>
+  </form>
+</section>
+{{end}}

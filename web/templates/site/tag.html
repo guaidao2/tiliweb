@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="eyebrow">标签</p>
+  <h1>{{.Tag.Name}}</h1>
+  {{if .Entries}}
+  <div class="cards">
+    {{range .Entries}}
+    <article class="card">
+      <h2><a href="{{$.BasePath}}/{{.ChannelSlug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}{{.ChannelName}}{{end}}</p>
+      <p class="muted">{{unixTime .PublishedAt}}</p>
+    </article>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">暂无该标签下的内容。</p>{{end}}
+</section>
+{{end}}

@@ -1,0 +1,26 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>修订记录</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}{{if eq .RevisionTargetType "entry"}}/entries{{else}}/pages{{end}}">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Revisions}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>编辑时间</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Revisions}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{.Title}}</td>
+        <td>{{unixTime .CreatedAt}}</td>
+        <td class="table-actions">
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/revisions/{{.ID}}/restore">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small" type="submit">恢复</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无修订记录。</p>{{end}}
+</section>
+{{end}}

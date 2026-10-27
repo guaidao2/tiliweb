@@ -1,0 +1,34 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">社区</p><h1>前台用户</h1></div></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Users}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>用户</th><th>邮箱</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Users}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><strong>{{.Username}}</strong><br><span class="muted">{{.DisplayName}}</span></td>
+        <td>{{.Email}}</td>
+        <td><span class="badge badge-{{.Status}}">{{statusLabel .Status}}</span></td>
+        <td>{{unixTime .LastLoginAt}}</td>
+        <td class="table-actions">
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/users/{{.ID}}/status">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="status" value="{{if eq .Status "active"}}disabled{{else}}active{{end}}">
+            <button class="button small {{if eq .Status "active"}}danger{{end}}" type="submit">{{if eq .Status "active"}}禁用{{else}}启用{{end}}</button>
+          </form>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/users/{{.ID}}/password">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <input class="input small" type="password" name="password" placeholder="新密码" minlength="10" required>
+            <button class="button small ghost" type="submit">重置</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无前台用户。</p>{{end}}
+</section>
+{{end}}

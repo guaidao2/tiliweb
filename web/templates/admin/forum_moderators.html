@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">论坛</p><h1>{{.Board.Name}} · 版主</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/forum/boards/{{.Board.ID}}/edit">编辑板块</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="post" action="{{.BasePath}}{{.AdminPath}}/forum/boards/{{.Board.ID}}/moderators">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <input type="hidden" name="action" value="add">
+    <label>前台用户
+      <select name="user_id" required>
+        <option value="">选择用户</option>
+        {{range .Users}}<option value="{{.ID}}">{{.Username}}{{if .DisplayName}}（{{.DisplayName}}）{{end}}</option>{{end}}
+      </select>
+    </label>
+    <button class="button" type="submit">任命版主</button>
+  </form>
+  {{if .ForumModerators}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>用户</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .ForumModerators}}
+      <tr>
+        <td>{{.UserID}}</td>
+        <td>{{.Username}}{{if .DisplayName}} · {{.DisplayName}}{{end}}</td>
+        <td>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/forum/boards/{{$.Board.ID}}/moderators">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="user_id" value="{{.UserID}}">
+            <button class="button small danger" type="submit">撤销</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂未任命版主。</p>{{end}}
+</section>
+{{end}}

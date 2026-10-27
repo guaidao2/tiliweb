@@ -1,0 +1,19 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="eyebrow">社区</p>
+  <h1>论坛</h1>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Boards}}
+  <div class="cards">
+    {{range .Boards}}
+    <article class="card">
+      <p class="eyebrow">{{if eq .Visibility "members"}}仅会员{{else}}公开{{end}}</p>
+      <h2><a href="{{$.BasePath}}/forum/{{.Slug}}">{{.Name}}</a></h2>
+      <p>{{if .Description}}{{.Description}}{{else}}浏览讨论板块。{{end}}</p>
+      <p class="muted">{{.TopicCount}} 个主题 · {{.ReplyCount}} 条回复</p>
+    </article>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">暂无板块。</p>{{end}}
+</section>
+{{end}}

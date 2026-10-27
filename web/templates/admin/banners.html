@@ -1,0 +1,30 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>首页轮播</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/banners/new">新建轮播</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Banners}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>链接</th><th>图片</th><th>排序</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Banners}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><strong>{{.Title}}</strong>{{if .Subtitle}}<br><span class="muted">{{.Subtitle}}</span>{{end}}</td>
+        <td>{{if .LinkURL}}<code>{{.LinkURL}}</code>{{else}}-{{end}}</td>
+        <td>{{if .ImageMediaID}}#{{.ImageMediaID}}{{else}}-{{end}}</td>
+        <td>{{.SortOrder}}</td>
+        <td><span class="badge">{{if .Enabled}}启用{{else}}停用{{end}}</span></td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/banners/{{.ID}}/edit">编辑</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/banners/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无轮播。首页会使用站点名称和描述作为兜底。</p>{{end}}
+</section>
+{{end}}

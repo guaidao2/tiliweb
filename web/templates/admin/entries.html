@@ -1,0 +1,60 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>内容列表</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/entries/new">新建内容</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="get" action="{{.BasePath}}{{.AdminPath}}/entries">
+    <label>栏目
+      <select name="channel">
+        <option value="0">全部</option>
+        {{range .Channels}}<option value="{{.ID}}" {{if eq $.FilterChannelID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
+    <label>状态
+      <select name="status">
+        <option value="">全部</option>
+        <option value="draft" {{if eq .FilterStatus "draft"}}selected{{end}}>草稿</option>
+        <option value="published" {{if eq .FilterStatus "published"}}selected{{end}}>已发布</option>
+        <option value="archived" {{if eq .FilterStatus "archived"}}selected{{end}}>已归档</option>
+      </select>
+    </label>
+    <label><span><input type="checkbox" name="deleted" value="1" {{if .IncludeDeleted}}checked{{end}}> 包含已删除</span></label>
+    <button class="button small" type="submit">筛选</button>
+  </form>
+  {{if .Entries}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>栏目</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Entries}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><strong>{{.Title}}</strong><br><span class="muted">{{if .Slug}}{{.Slug}}{{else}}id:{{.ID}}{{end}}</span>{{if .DeletedAt}} <span class="badge">已删除</span>{{end}}</td>
+        <td>{{.ChannelName}}</td>
+        <td><span class="badge badge-{{.Status}}">{{statusLabel .Status}}</span></td>
+        <td>{{unixTime .UpdatedAt}}</td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/entries/{{.ID}}/edit">编辑</a>
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/entries/{{.ID}}/revisions">修订</a>
+          {{if .DeletedAt}}
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/entries/{{.ID}}/restore">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small" type="submit">恢复</button>
+          </form>
+          {{else}}
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/entries/{{.ID}}/status">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="status" value="{{if eq .Status "published"}}draft{{else}}published{{end}}">
+            <button class="button small" type="submit">{{if eq .Status "published"}}下线{{else}}发布{{end}}</button>
+          </form>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/entries/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无内容。</p>{{end}}
+</section>
+{{end}}

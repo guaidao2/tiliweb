@@ -1,0 +1,30 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>栏目</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/channels/new">新建栏目</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Channels}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>别名</th><th>名称</th><th>类型</th><th>状态</th><th>导航</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Channels}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><code>{{.Slug}}</code></td>
+        <td>{{.Name}}</td>
+        <td>{{.Type}}</td>
+        <td><span class="badge badge-{{.Status}}">{{statusLabel .Status}}</span></td>
+        <td>{{if .ShowInNav}}是{{else}}否{{end}}</td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/channels/{{.ID}}/edit">编辑</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/channels/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无栏目。</p>{{end}}
+</section>
+{{end}}

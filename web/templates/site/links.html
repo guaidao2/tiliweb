@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="eyebrow">友情链接</p>
+  <h1>友情链接</h1>
+  {{if .FriendLinks}}
+  <div class="cards">
+    {{range .FriendLinks}}
+    <article class="card">
+      {{if .LogoMediaID}}<img src="{{$.BasePath}}/media/{{.LogoMediaID}}/image" alt="{{.Name}}" style="max-width:120px;max-height:60px;object-fit:contain">{{end}}
+      <h2><a href="{{.URL}}" rel="noopener noreferrer">{{.Name}}</a></h2>
+      <p class="muted">{{.URL}}</p>
+    </article>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">暂无友情链接。</p>{{end}}
+</section>
+{{end}}

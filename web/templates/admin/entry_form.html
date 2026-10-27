@@ -1,0 +1,83 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>{{if .Entry.ID}}编辑内容{{else}}新建内容{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/entries">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/entries/{{if .Entry.ID}}{{.Entry.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>栏目
+      <select name="channel_id" required>
+        <option value="">选择栏目</option>
+        {{range .Channels}}<option value="{{.ID}}" {{if eq $.Entry.ChannelID .ID}}selected{{end}}>{{.Name}}（{{.Type}}）</option>{{end}}
+      </select>
+    </label>
+    <label>标题 <input name="title" value="{{.Entry.Title}}" required></label>
+    <label>别名（可选） <input name="slug" value="{{.Entry.Slug}}"></label>
+    <label>摘要 <textarea name="summary" rows="2">{{.Entry.Summary}}</textarea></label>
+    <label>正文（Markdown） <textarea name="body_md" rows="16">{{.Entry.BodyMD}}</textarea></label>
+    <label>标签（逗号分隔） <input name="tags" value="{{range $i, $t := .Entry.Tags}}{{if $i}}, {{end}}{{$t.Name}}{{end}}"></label>
+    <label>状态
+      <select name="status">
+        <option value="draft" {{if eq .Entry.Status "draft"}}selected{{end}}>草稿</option>
+        <option value="published" {{if eq .Entry.Status "published"}}selected{{end}}>已发布</option>
+        <option value="archived" {{if eq .Entry.Status "archived"}}selected{{end}}>已归档</option>
+      </select>
+    </label>
+    <label>排序 <input type="number" name="sort_order" value="{{.Entry.SortOrder}}"></label>
+    <label>封面媒体 ID <input type="number" name="cover_media_id" value="{{.Entry.CoverMediaID}}"></label>
+    <label>扩展 JSON <textarea name="extra_json" rows="3">{{.Entry.ExtraJSON}}</textarea></label>
+    <label><span><input type="checkbox" name="pinned" value="1" {{if .Entry.Pinned}}checked{{end}}> 置顶</span></label>
+    <label><span><input type="checkbox" name="featured" value="1" {{if .Entry.Featured}}checked{{end}}> 推荐</span></label>
+    <fieldset class="form-section">
+      <legend>类型扩展字段</legend>
+      <label>产品型号 <input name="extra_model" value="{{extra .Entry.Extra "model"}}"></label>
+      <label>价格文案 <input name="extra_price_text" value="{{extra .Entry.Extra "price_text"}}"></label>
+      <label>案例客户 <input name="extra_client" value="{{extra .Entry.Extra "client"}}"></label>
+      <label>案例行业 <input name="extra_industry" value="{{extra .Entry.Extra "industry"}}"></label>
+      <label>案例成果 <textarea name="extra_results" rows="2">{{extra .Entry.Extra "results"}}</textarea></label>
+      <label>招聘部门 <input name="extra_department" value="{{extra .Entry.Extra "department"}}"></label>
+      <label>工作地点 <input name="extra_location" value="{{extra .Entry.Extra "location"}}"></label>
+      <label>招聘人数 <input name="extra_headcount" value="{{extra .Entry.Extra "headcount"}}"></label>
+      <label>薪资范围 <input name="extra_salary_range" value="{{extra .Entry.Extra "salary_range"}}"></label>
+      <label>投递邮箱 <input name="extra_contact_email" value="{{extra .Entry.Extra "contact_email"}}"></label>
+      <label>下载版本 <input name="extra_version" value="{{extra .Entry.Extra "version"}}"></label>
+      <label>下载说明 <input name="extra_file_note" value="{{extra .Entry.Extra "file_note"}}"></label>
+    </fieldset>
+    <div class="actions">
+      <button class="button" type="submit">保存内容</button>
+      {{if .Entry.ID}}<a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/entries/{{.Entry.ID}}/revisions">修订记录</a>{{end}}
+    </div>
+  </form>
+  {{if .Entry.ID}}
+  <div class="section-head"><h2>附件</h2><span class="muted">可下载文件</span></div>
+  {{if .Attachments}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>文件</th><th>大小</th><th>下载次数</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Attachments}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{.Title}}</td>
+        <td>{{.OriginalName}}<br><span class="muted">{{.MIME}}</span></td>
+        <td>{{.Size}} 字节</td>
+        <td>{{.DownloadCount}}</td>
+        <td class="table-actions">
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/attachments/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无附件。</p>{{end}}
+  <form class="form" method="post" enctype="multipart/form-data" action="{{.BasePath}}{{.AdminPath}}/entries/{{.Entry.ID}}/attachments">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>标题 <input name="title" placeholder="产品手册 PDF"></label>
+    <label>文件 <input type="file" name="file" accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt" required></label>
+    <label>排序 <input type="number" name="sort_order" value="0"></label>
+    <button class="button" type="submit">上传附件</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

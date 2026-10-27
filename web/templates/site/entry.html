@@ -1,0 +1,84 @@
+{{define "content"}}
+<section class="admin-page">
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+  <article class="note">
+    <p class="eyebrow">{{.Entry.ChannelName}}</p>
+    <h1>{{.Entry.Title}}</h1>
+    <p class="muted">发布于 {{unixTime .Entry.PublishedAt}} · {{.Entry.AuthorName}}</p>
+    <div class="prose">{{safeHTML .Entry.BodyHTML}}</div>
+
+    {{if eq .Entry.ChannelType "product"}}
+    <dl class="entry-meta">
+      {{if extra .Entry.Extra "model"}}<dt>型号</dt><dd>{{extra .Entry.Extra "model"}}</dd>{{end}}
+      {{if extra .Entry.Extra "price_text"}}<dt>价格</dt><dd>{{extra .Entry.Extra "price_text"}}</dd>{{end}}
+    </dl>
+    {{else if eq .Entry.ChannelType "case"}}
+    <dl class="entry-meta">
+      {{if extra .Entry.Extra "client"}}<dt>客户</dt><dd>{{extra .Entry.Extra "client"}}</dd>{{end}}
+      {{if extra .Entry.Extra "industry"}}<dt>行业</dt><dd>{{extra .Entry.Extra "industry"}}</dd>{{end}}
+      {{if extra .Entry.Extra "results"}}<dt>成果</dt><dd>{{extra .Entry.Extra "results"}}</dd>{{end}}
+    </dl>
+    {{else if eq .Entry.ChannelType "job"}}
+    <dl class="entry-meta">
+      {{if extra .Entry.Extra "department"}}<dt>部门</dt><dd>{{extra .Entry.Extra "department"}}</dd>{{end}}
+      {{if extra .Entry.Extra "location"}}<dt>地点</dt><dd>{{extra .Entry.Extra "location"}}</dd>{{end}}
+      {{if extra .Entry.Extra "headcount"}}<dt>招聘人数</dt><dd>{{extra .Entry.Extra "headcount"}}</dd>{{end}}
+      {{if extra .Entry.Extra "salary_range"}}<dt>薪资</dt><dd>{{extra .Entry.Extra "salary_range"}}</dd>{{end}}
+      {{if extra .Entry.Extra "contact_email"}}<dt>投递</dt><dd><a href="mailto:{{extra .Entry.Extra "contact_email"}}">{{extra .Entry.Extra "contact_email"}}</a></dd>{{end}}
+    </dl>
+    {{else if eq .Entry.ChannelType "download"}}
+    <dl class="entry-meta">
+      {{if extra .Entry.Extra "version"}}<dt>版本</dt><dd>{{extra .Entry.Extra "version"}}</dd>{{end}}
+      {{if extra .Entry.Extra "file_note"}}<dt>说明</dt><dd>{{extra .Entry.Extra "file_note"}}</dd>{{end}}
+    </dl>
+    {{end}}
+
+    {{if .Attachments}}
+    <h2>资料下载</h2>
+    <ul class="attachment-list">
+      {{range .Attachments}}
+      <li>
+        <a href="{{$.BasePath}}/download/{{.ID}}">{{.Title}}</a>
+        <span class="muted">{{.OriginalName}} · {{.Size}} 字节 · 已下载 {{.DownloadCount}} 次</span>
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
+
+    {{if .Entry.Tags}}
+    <p class="muted">标签：
+      {{range $i, $t := .Entry.Tags}}{{if $i}}, {{end}}<a href="{{$.BasePath}}/tags/{{$t.Slug}}">{{$t.Name}}</a>{{end}}
+    </p>
+    {{end}}
+    <p><a href="{{.BasePath}}/{{.Entry.ChannelSlug}}">← 返回 {{.Entry.ChannelName}}</a></p>
+  </article>
+
+  {{if .CommentsEnabled}}
+  <section class="comments">
+    <h2>评论（{{len .Comments}}）</h2>
+    {{range .Comments}}
+    <article class="comment">
+      <p class="muted"><strong>{{if .AuthorName}}{{.AuthorName}}{{else}}读者{{end}}</strong> · {{unixTime .CreatedAt}}</p>
+      <div class="prose">{{safeHTML .BodyHTML}}</div>
+    </article>
+    {{else}}<p class="muted">暂无评论。</p>{{end}}
+
+    {{if or .SignedIn .GuestComment}}
+    <form class="form" method="post" action="{{.BasePath}}/{{.Entry.ChannelSlug}}/{{if .Entry.Slug}}{{.Entry.Slug}}{{else}}{{.Entry.ID}}{{end}}/comment">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      {{if not .SignedIn}}
+      <label>姓名 <input name="author_name" required maxlength="100"></label>
+      <label>邮箱（不公开） <input type="email" name="author_email" maxlength="254"></label>
+      {{end}}
+      <label>评论内容 <textarea name="body" rows="5" required maxlength="5000"></textarea></label>
+      <button class="button" type="submit">发表评论</button>
+      {{if .CommentModeration}}<p class="muted">评论需要审核后显示。</p>{{end}}
+    </form>
+    {{else}}
+    <p class="muted"><a href="{{.BasePath}}/login">登录</a>后可以评论。</p>
+    {{end}}
+  </section>
+  {{end}}
+</section>
+{{end}}

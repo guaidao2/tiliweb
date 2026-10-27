@@ -1,0 +1,33 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>{{if .Channel.ID}}编辑栏目{{else}}新建栏目{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/channels">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/channels/{{if .Channel.ID}}{{.Channel.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>别名 <input name="slug" value="{{.Channel.Slug}}" required></label>
+    <label>名称 <input name="name" value="{{.Channel.Name}}" required></label>
+    <label>类型
+      <select name="type">
+        <option value="article" {{if eq .Channel.Type "article"}}selected{{end}}>文章</option>
+        <option value="product" {{if eq .Channel.Type "product"}}selected{{end}}>产品</option>
+        <option value="case" {{if eq .Channel.Type "case"}}selected{{end}}>案例</option>
+        <option value="job" {{if eq .Channel.Type "job"}}selected{{end}}>招聘</option>
+        <option value="download" {{if eq .Channel.Type "download"}}selected{{end}}>下载</option>
+      </select>
+    </label>
+    <label>描述 <textarea name="description" rows="3">{{.Channel.Description}}</textarea></label>
+    <label>状态
+      <select name="status">
+        <option value="active" {{if eq .Channel.Status "active"}}selected{{end}}>启用</option>
+        <option value="hidden" {{if eq .Channel.Status "hidden"}}selected{{end}}>隐藏</option>
+      </select>
+    </label>
+    <label>排序 <input type="number" name="sort_order" value="{{.Channel.SortOrder}}"></label>
+    <label><span><input type="checkbox" name="show_in_nav" value="1" {{if .Channel.ShowInNav}}checked{{end}}> 显示在导航</span></label>
+    <label><span><input type="checkbox" name="comments_enabled" value="1" {{if .Channel.CommentsEnabled}}checked{{end}}> 开启评论</span></label>
+    <label>SEO 标题 <input name="seo_title" value="{{.Channel.SEOTitle}}"></label>
+    <label>SEO 描述 <textarea name="seo_description" rows="2">{{.Channel.SEODescription}}</textarea></label>
+    <button class="button" type="submit">保存栏目</button>
+  </form>
+</section>
+{{end}}

@@ -1,0 +1,30 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>页面</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/pages/new">新建页面</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Pages}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>别名</th><th>状态</th><th>导航</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Pages}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{.Title}}</td>
+        <td><code>{{.Slug}}</code></td>
+        <td><span class="badge badge-{{.Status}}">{{statusLabel .Status}}</span></td>
+        <td>{{if .ShowInNav}}是{{else}}否{{end}}</td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/pages/{{.ID}}/edit">编辑</a>
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/pages/{{.ID}}/revisions">修订</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/pages/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无页面。</p>{{end}}
+</section>
+{{end}}

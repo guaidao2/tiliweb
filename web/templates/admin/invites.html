@@ -1,0 +1,41 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">权限</p><h1>邀请码</h1></div></div>
+  {{if .NewCode}}<div class="alert success">新邀请码（只显示一次）：<code>{{.NewCode}}</code></div>{{end}}
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="post" action="{{.BasePath}}{{.AdminPath}}/invites">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>有效期（小时）<input class="input" type="number" name="hours" value="168" min="1" max="720"></label>
+    <button class="button" type="submit">创建邀请码</button>
+  </form>
+  {{if .Invites}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>创建时间</th><th>过期时间</th><th>状态</th><th>使用者</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Invites}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{unixTime .CreatedAt}}</td>
+        <td>{{unixTime .ExpiresAt}}</td>
+        <td>
+          {{if .RevokedAt}}<span class="badge">已吊销</span>
+          {{else if .UsedAt}}<span class="badge">已使用</span>
+          {{else if and .ExpiresAt (lt .ExpiresAt (nowUnix))}}<span class="badge">已过期</span>
+          {{else}}<span class="badge badge-active">有效</span>{{end}}
+        </td>
+        <td>{{if .UsedByUserID}}#{{.UsedByUserID}}{{else}}-{{end}}</td>
+        <td class="table-actions">
+          {{if and (eq .UsedAt 0) (eq .RevokedAt 0)}}
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/invites/{{.ID}}/revoke">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">吊销</button>
+          </form>
+          {{else}}-{{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无邀请码。</p>{{end}}
+</section>
+{{end}}

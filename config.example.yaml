@@ -1,0 +1,183 @@
+server:
+  # 默认只监听本机，反代指向这里；直连可改 0.0.0.0:80
+  listen: "127.0.0.1:8080"
+  base_url: "http://localhost:8080"
+  base_path: ""
+  trusted_proxies: ["127.0.0.1", "::1"]
+  read_header_timeout: 5s
+  read_timeout: 120s
+  write_timeout: 300s
+  idle_timeout: 120s
+  shutdown_timeout: 15s
+  max_header_bytes: 1048576
+  max_body_bytes: 67108864
+  enable_gzip: false
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+
+database:
+  driver: sqlite
+  dsn: "./data/tiliweb.db"
+  max_open_conns: 8
+  busy_timeout: 5000
+  auto_migrate: true
+
+storage:
+  data_dir: "./data"
+  media_dir: "./data/media"
+  document_dir: "./data/documents"
+  backup_dir: "./data/backups"
+  log_dir: "./data/logs"
+
+admin:
+  path: "/admin"
+  session_ttl: 12h
+  session_idle: 30m
+  cookie_name: "tili_admin"
+  cookie_secure: false
+  login_rate_per_minute: 10
+  lockout_threshold: 5
+  lockout_duration: 15m
+  password_min_length: 12
+
+auth:
+  register_enabled: true
+  register_mode: "approval"
+  session_ttl: 168h
+  session_idle: 72h
+  cookie_name: "tili_session"
+  cookie_secure: false
+  password_min_length: 10
+  login_rate_per_minute: 10
+  lockout_threshold: 5
+  lockout_duration: 15m
+  guest_comment: false
+
+forum:
+  boards_per_page: 20
+  topics_per_page: 20
+  posts_per_page: 20
+  edit_window: 30m
+  new_user_moderation_posts: 3
+
+site:
+  name: "tiliweb"
+  description: ""
+  locale: "zh-CN"
+  timezone: "Asia/Shanghai"
+  logo_media_id: 0
+  favicon_media_id: 0
+  icp: ""
+  police_record: ""
+  copyright: ""
+  contact:
+    phone: ""
+    email: ""
+    address: ""
+    map_url: ""
+    wechat_qr_media_id: 0
+  analytics:
+    provider: ""
+    id: ""
+    domain: ""
+  seo:
+    default_title: ""
+    default_description: ""
+    og_image_media_id: 0
+    robots_extra: ""
+
+content:
+  news_per_page: 10
+  products_per_page: 12
+  cases_per_page: 9
+  jobs_per_page: 10
+  downloads_per_page: 10
+  comments_enabled: false
+  comment_moderation: true
+  comments_per_page: 20
+  sitemap_include_forum: true
+
+mail:
+  enabled: false
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  from: ""
+  tls: "starttls"
+  notify_contact: true
+
+uploads:
+  max_image_bytes: 16777216
+  max_document_bytes: 52428800
+  image_max_pixels: 40000000
+  allowed_image_types: ["image/jpeg", "image/png", "image/gif", "image/webp"]
+  allowed_document_exts: [".pdf", ".zip", ".docx", ".xlsx", ".pptx", ".txt"]
+
+dev:
+  enabled: false
+  templates_disk: false
+  static_disk: false
+  templates_dir: "./web/templates"
+  static_dir: "./web/static"
+  reload_templates: true
+
+log:
+  level: "info"
+  format: "text"
+  access_log: true
+  file: ""
+  max_size_mb: 50
+  max_backups: 5
+  ring_buffer_lines: 5000
+
+audit:
+  enabled: true
+  retention_days: 180
+
+rate_limit:
+  enabled: true
+  contact_per_hour: 5
+  register_per_hour: 5
+  post_per_minute: 30
+  upload_per_minute: 10
+
+security:
+  csrf_cookie_name: "tili_csrf"
+  admin_require_password_confirm: true
+  hsts_enabled: true
+  hsts_max_age: 31536000
+  server_header: ""
+
+mcp:
+  enabled: false
+  stdio:
+    enabled: true
+    default_scopes: ["read"]
+  http:
+    enabled: false
+    listen: "127.0.0.1:8090"
+    public: false
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+    allowed_ips: []
+    auth_rate_per_minute: 10
+    auth_lockout: 15m
+    max_body_bytes: 1048576
+    read_timeout: 30s
+    write_timeout: 900s
+    max_sse_connections: 20
+  allow_write: false
+  allow_admin_scope: false
+  require_destructive_confirm: true
+  token_ttl: 720h
+  rate_limit_per_minute: 60
+  max_rows: 100
+  max_result_bytes: 262144
+  call_timeout: 30s
+  long_task_timeout: 10m
+  log_tool_args: false

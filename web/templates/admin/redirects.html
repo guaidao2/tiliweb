@@ -1,0 +1,28 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>重定向</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/redirects/new">新建重定向</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Redirects}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>原路径</th><th>目标路径</th><th>状态码</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Redirects}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><code>{{.FromPath}}</code></td>
+        <td><code>{{.ToPath}}</code></td>
+        <td>{{.StatusCode}}</td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/redirects/{{.ID}}/edit">编辑</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/redirects/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无重定向。</p>{{end}}
+</section>
+{{end}}

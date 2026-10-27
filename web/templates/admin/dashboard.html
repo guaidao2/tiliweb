@@ -1,0 +1,39 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">概览</p>
+      <h1>仪表盘</h1>
+    </div>
+    <span class="badge">{{roleLabel .Admin.Role}}</span>
+  </div>
+
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+
+  <div class="stats">
+    <div class="stat"><span class="stat-value">{{.Counts.Admins}}</span><span class="stat-label">管理员</span></div>
+    <div class="stat"><span class="stat-value">{{.Counts.Users}}</span><span class="stat-label">前台用户</span></div>
+    <div class="stat"><span class="stat-value">{{.Counts.PendingUsers}}</span><span class="stat-label">待审批</span></div>
+    <div class="stat"><span class="stat-value">{{.NewMessages}}</span><span class="stat-label">新留言</span></div>
+    <div class="stat"><span class="stat-value">{{.PendingComments}}</span><span class="stat-label">待审评论</span></div>
+  </div>
+
+  <div class="section-head"><h2>最近审计</h2><span class="muted">最近 10 条</span></div>
+  {{if .Audit}}
+  <table class="table">
+    <thead><tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>IP</th></tr></thead>
+    <tbody>
+      {{range .Audit}}
+      <tr>
+        <td>{{unixTime .CreatedAt}}</td>
+        <td>{{.ActorType}}{{if .ActorID}} #{{.ActorID}}{{end}}</td>
+        <td>{{.Action}}</td>
+        <td>{{if .TargetType}}{{.TargetType}}{{if .TargetID}} #{{.TargetID}}{{end}}{{else}}-{{end}}</td>
+        <td>{{if .IP}}{{.IP}}{{else}}-{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无审计记录。</p>{{end}}
+</section>
+{{end}}

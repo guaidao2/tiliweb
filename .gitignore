@@ -1,0 +1,37 @@
+# binaries / build output
+/tiliweb
+/tiliweb.exe
+/tiliweb-*
+/dist/
+*.exe
+*.test
+*.out
+coverage.out
+
+# local data / secrets
+/data/
+/config.yaml
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*.log
+
+# development notes / design docs are intentionally not published
+/docs/
+/scratch/
+/.reasonix/
+
+# editor / OS / scratch
+.idea/
+.vscode/
+.history/
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp

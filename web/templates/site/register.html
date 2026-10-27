@@ -1,0 +1,35 @@
+{{define "content"}}
+<section class="auth">
+  <p class="eyebrow">账户</p>
+  <h1>创建账号</h1>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+
+  {{if .RegisterEnabled}}
+  <form class="form" method="post" action="{{.BasePath}}/register">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>用户名
+      <input name="username" autocomplete="username" required minlength="3" maxlength="32" autofocus>
+    </label>
+    <label>邮箱
+      <input type="email" name="email" autocomplete="email" required>
+    </label>
+    <label>密码
+      <input type="password" name="password" autocomplete="new-password" required minlength="10">
+    </label>
+    {{if eq .RegisterMode "invite"}}
+    <label>邀请码
+      <input name="invite" required autocomplete="off">
+    </label>
+    {{end}}
+    <button class="button" type="submit">创建账号</button>
+  </form>
+  {{if eq .RegisterMode "approval"}}
+  <p class="muted">新账号需要管理员审批后才能登录。</p>
+  {{end}}
+  {{else}}
+  <div class="alert">当前未开放注册，请联系站点管理员。</div>
+  {{end}}
+
+  <p class="muted">已有账号？<a href="{{.BasePath}}/login">登录</a>。</p>
+</section>
+{{end}}

@@ -1,0 +1,98 @@
+{{define "content"}}
+{{if .HomeSettings.ShowBanners}}
+  {{if .Banners}}
+  <section class="hero-banner">
+    {{range .Banners}}
+    <article class="banner">
+      {{if .ImageMediaID}}<img src="{{$.BasePath}}/media/{{.ImageMediaID}}/image" alt="{{.Title}}">{{end}}
+      <div class="banner-copy">
+        {{if .Title}}<h1>{{.Title}}</h1>{{end}}
+        {{if .Subtitle}}<p class="lede">{{.Subtitle}}</p>{{end}}
+        {{if .ButtonText}}<div class="actions"><a class="button" href="{{if .LinkURL}}{{.LinkURL}}{{else}}{{$.BasePath}}/contact{{end}}">{{.ButtonText}}</a></div>{{end}}
+      </div>
+    </article>
+    {{end}}
+  </section>
+  {{else}}
+  <section class="hero">
+    <p class="eyebrow">欢迎</p>
+    <h1>{{.SiteName}}</h1>
+    <p class="lede">{{if .SiteDescription}}{{.SiteDescription}}{{else}}一个自托管的 Go CMS。{{end}}</p>
+    <div class="actions"><a class="button" href="{{.BasePath}}/contact">联系我们</a></div>
+  </section>
+  {{end}}
+{{else}}
+<section class="hero">
+  <p class="eyebrow">欢迎</p>
+  <h1>{{.SiteName}}</h1>
+  <p class="lede">{{if .SiteDescription}}{{.SiteDescription}}{{else}}一个自托管的 Go CMS。{{end}}</p>
+  <div class="actions"><a class="button" href="{{.BasePath}}/contact">联系我们</a></div>
+</section>
+{{end}}
+
+{{if .FeaturedEntries}}
+<section class="section">
+  <div class="section-head"><h2>精选内容</h2><a href="{{.BasePath}}/search?type=all">查看全部</a></div>
+  <div class="cards">
+    {{range .FeaturedEntries}}
+    <article class="card">
+      <p class="eyebrow">{{.ChannelName}}</p>
+      <h2><a href="{{$.BasePath}}/{{.ChannelSlug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}阅读全文{{end}}</p>
+      <p class="muted">{{unixTime .PublishedAt}}</p>
+    </article>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{if .LatestEntries}}
+<section class="section">
+  <div class="section-head"><h2>最新内容</h2><a href="{{.BasePath}}/search?type=all">搜索</a></div>
+  <div class="cards">
+    {{range .LatestEntries}}
+    <article class="card">
+      <p class="eyebrow">{{.ChannelName}}</p>
+      <h2><a href="{{$.BasePath}}/{{.ChannelSlug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}阅读全文{{end}}</p>
+      <p class="muted">{{unixTime .PublishedAt}}</p>
+    </article>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{if .ProductEntries}}
+<section class="section">
+  <div class="section-head"><h2>产品与服务</h2></div>
+  <div class="cards">
+    {{range .ProductEntries}}
+    <article class="card">
+      <h2><a href="{{$.BasePath}}/{{.ChannelSlug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}了解更多{{end}}</p>
+    </article>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{if .CaseEntries}}
+<section class="section">
+  <div class="section-head"><h2>客户案例</h2></div>
+  <div class="cards">
+    {{range .CaseEntries}}
+    <article class="card">
+      <h2><a href="{{$.BasePath}}/{{.ChannelSlug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}查看案例{{end}}</p>
+    </article>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+<section class="cta">
+  <h2>{{if .HomeSettings.CTATitle}}{{.HomeSettings.CTATitle}}{{else}}联系我们{{end}}</h2>
+  <p>{{if .HomeSettings.CTAText}}{{.HomeSettings.CTAText}}{{else}}介绍一下你的项目，我们会尽快回复。{{end}}</p>
+  <a class="button" href="{{if .HomeSettings.CTAURL}}{{.HomeSettings.CTAURL}}{{else}}{{.BasePath}}/contact{{end}}">取得联系</a>
+</section>
+{{end}}

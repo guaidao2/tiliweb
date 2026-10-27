@@ -1,0 +1,8 @@
+{{define "content"}}
+<section class="admin-page">
+  <article class="note">
+    <h1>{{.Page.Title}}</h1>
+    <div class="prose">{{safeHTML .Page.BodyHTML}}</div>
+  </article>
+</section>
+{{end}}

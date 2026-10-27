@@ -1,0 +1,18 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>{{if .Redirect.ID}}编辑重定向{{else}}新建重定向{{end}}</h1></div><a class="button ghost" href="{{.BasePath}}{{.AdminPath}}/redirects">返回</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form" method="post" action="{{.BasePath}}{{.AdminPath}}/redirects/{{if .Redirect.ID}}{{.Redirect.ID}}/edit{{else}}new{{end}}">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>原路径 <input name="from_path" value="{{.Redirect.FromPath}}" placeholder="/old-page" required></label>
+    <label>目标路径 <input name="to_path" value="{{.Redirect.ToPath}}" placeholder="/new-page" required></label>
+    <label>状态码
+      <select name="status_code">
+        <option value="301" {{if eq .Redirect.StatusCode 301}}selected{{end}}>301 永久</option>
+        <option value="302" {{if eq .Redirect.StatusCode 302}}selected{{end}}>302 临时</option>
+      </select>
+    </label>
+    <button class="button" type="submit">保存重定向</button>
+  </form>
+</section>
+{{end}}

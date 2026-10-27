@@ -1,0 +1,31 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="eyebrow">联系</p>
+  <h1>联系我们</h1>
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <div class="contact-grid">
+    <div>
+      {{if .SiteSettings.ContactPageHTML}}<div class="prose">{{safeHTML .SiteSettings.ContactPageHTML}}</div>{{else}}<p class="lede">告诉我们你的需求，我们会尽快回复。</p>{{end}}
+      <dl class="contact-info">
+        {{if .SiteSettings.Contact.Phone}}<dt>电话</dt><dd>{{.SiteSettings.Contact.Phone}}</dd>{{end}}
+        {{if .SiteSettings.Contact.Email}}<dt>邮箱</dt><dd><a href="mailto:{{.SiteSettings.Contact.Email}}">{{.SiteSettings.Contact.Email}}</a></dd>{{end}}
+        {{if .SiteSettings.Contact.Address}}<dt>地址</dt><dd>{{.SiteSettings.Contact.Address}}</dd>{{end}}
+        {{if .SiteSettings.Contact.MapURL}}<dt>地图</dt><dd><a href="{{.SiteSettings.Contact.MapURL}}" rel="noreferrer">打开地图</a></dd>{{end}}
+      </dl>
+    </div>
+    <form class="form" method="post" action="{{.BasePath}}/contact">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      <input type="hidden" name="started" value="{{.ContactStarted}}">
+      <div class="honeypot" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <label>姓名 <input name="name" required maxlength="100"></label>
+      <label>邮箱 <input type="email" name="email" maxlength="254"></label>
+      <label>电话 <input name="phone" maxlength="50"></label>
+      <label>单位 <input name="company" maxlength="120"></label>
+      <label>主题 <input name="subject" maxlength="200"></label>
+      <label>留言内容 <textarea name="message" rows="7" required maxlength="5000"></textarea></label>
+      <button class="button" type="submit">发送留言</button>
+    </form>
+  </div>
+</section>
+{{end}}

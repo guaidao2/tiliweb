@@ -1,0 +1,66 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Locale}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · {{.SiteName}}</title>
+  <meta name="description" content="{{.Description}}">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
+</head>
+<body class="admin-body">
+  <header class="admin-header">
+    <a class="brand" href="{{.BasePath}}{{.AdminPath}}/">{{.SiteName}} <span class="muted">管理后台</span></a>
+    {{if .Admin}}
+    <nav class="admin-nav" aria-label="后台导航">
+      <a href="{{.BasePath}}{{.AdminPath}}/">仪表盘</a>
+      {{if or (eq .Admin.Role "superadmin") (eq .Admin.Role "editor")}}
+      <a href="{{.BasePath}}{{.AdminPath}}/channels">栏目</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/entries">内容</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/pages">页面</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/tags">标签</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/media">媒体</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/banners">轮播</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/home">首页模块</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/messages">留言{{if .NewMessages}} ({{.NewMessages}}){{end}}</a>
+      {{end}}
+      {{if or (eq .Admin.Role "superadmin") (eq .Admin.Role "editor") (eq .Admin.Role "moderator")}}
+      <a href="{{.BasePath}}{{.AdminPath}}/comments">评论{{if .PendingComments}} ({{.PendingComments}}){{end}}</a>
+      {{end}}
+      {{if or (eq .Admin.Role "superadmin") (eq .Admin.Role "editor")}}
+      <a href="{{.BasePath}}{{.AdminPath}}/forum/boards">论坛板块</a>
+      {{end}}
+      {{if or (eq .Admin.Role "superadmin") (eq .Admin.Role "editor") (eq .Admin.Role "moderator")}}
+      <a href="{{.BasePath}}{{.AdminPath}}/forum/topics">论坛主题</a>
+      {{end}}
+      {{if or (eq .Admin.Role "superadmin") (eq .Admin.Role "editor")}}
+      <a href="{{.BasePath}}{{.AdminPath}}/links">友情链接</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/redirects">重定向</a>
+      {{end}}
+      {{if eq .Admin.Role "superadmin"}}
+      <a href="{{.BasePath}}{{.AdminPath}}/users">前台用户</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/invites">邀请码</a>
+      <a href="{{.BasePath}}{{.AdminPath}}/settings">站点设置</a>
+      {{end}}
+    </nav>
+    <div class="admin-user">
+      <span>{{.Admin.Username}} · {{roleLabel .Admin.Role}}</span>
+      <form method="post" action="{{.BasePath}}{{.AdminPath}}/logout" class="inline">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}">
+        <button class="link-button" type="submit">退出</button>
+      </form>
+    </div>
+    {{end}}
+  </header>
+
+  <main class="site-main">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer">
+    <span>{{.SiteName}} 管理后台</span>
+    <span>v{{.Version}} · {{.Year}}</span>
+  </footer>
+</body>
+</html>
+{{end}}

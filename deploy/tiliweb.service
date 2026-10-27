@@ -1,0 +1,22 @@
+[Unit]
+Description=tiliweb CMS
+After=network.target
+
+[Service]
+Type=simple
+User=tiliweb
+Group=tiliweb
+WorkingDirectory=/var/lib/tiliweb
+ExecStart=/opt/tiliweb/tiliweb serve --config /etc/tiliweb/config.yaml
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tiliweb /var/log/tiliweb
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

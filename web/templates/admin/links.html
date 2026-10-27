@@ -1,0 +1,29 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">站点</p><h1>友情链接</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/links/new">新建链接</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .FriendLinks}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>名称</th><th>URL</th><th>排序</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .FriendLinks}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{.Name}}{{if .LogoMediaID}}<br><span class="muted">Logo #{{.LogoMediaID}}</span>{{end}}</td>
+        <td><a href="{{.URL}}" rel="noreferrer">{{.URL}}</a></td>
+        <td>{{.SortOrder}}</td>
+        <td><span class="badge">{{if .Enabled}}启用{{else}}停用{{end}}</span></td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/links/{{.ID}}/edit">编辑</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/links/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无友情链接。</p>{{end}}
+</section>
+{{end}}

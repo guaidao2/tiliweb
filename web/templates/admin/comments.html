@@ -1,0 +1,46 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">社区</p><h1>评论</h1></div><span class="muted">{{.PendingComments}} 条待审</span></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form class="form form-row" method="get" action="{{.BasePath}}{{.AdminPath}}/comments">
+    <label>状态
+      <select name="status">
+        <option value="">全部</option>
+        <option value="pending" {{if eq .CommentFilter "pending"}}selected{{end}}>待审核</option>
+        <option value="approved" {{if eq .CommentFilter "approved"}}selected{{end}}>已通过</option>
+        <option value="spam" {{if eq .CommentFilter "spam"}}selected{{end}}>垃圾</option>
+        <option value="deleted" {{if eq .CommentFilter "deleted"}}selected{{end}}>已删除</option>
+      </select>
+    </label>
+    <button class="button small" type="submit">筛选</button>
+  </form>
+  {{if .Comments}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>内容</th><th>作者</th><th>评论</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .Comments}}
+      <tr>
+        <td>{{.ID}}<br><span class="muted">{{unixTime .CreatedAt}}</span></td>
+        <td>#{{.EntryID}}</td>
+        <td>{{.AuthorName}}{{if .AuthorEmail}}<br><span class="muted">{{.AuthorEmail}}</span>{{end}}</td>
+        <td>{{safeHTML .BodyHTML}}</td>
+        <td><span class="badge">{{statusLabel .Status}}</span></td>
+        <td class="table-actions">
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/comments/{{.ID}}/status">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <select name="status">
+              <option value="approved">通过</option>
+              <option value="pending">待审</option>
+              <option value="spam">垃圾</option>
+              <option value="deleted">删除</option>
+            </select>
+            <button class="button small" type="submit">设置</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无评论。</p>{{end}}
+</section>
+{{end}}

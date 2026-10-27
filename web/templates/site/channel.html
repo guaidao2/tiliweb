@@ -1,0 +1,18 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="eyebrow">栏目</p>
+  <h1>{{.Channel.Name}}</h1>
+  {{if .Channel.Description}}<p class="lede">{{.Channel.Description}}</p>{{end}}
+  {{if .Entries}}
+  <div class="cards">
+    {{range .Entries}}
+    <article class="card">
+      <h2><a href="{{$.BasePath}}/{{$.Channel.Slug}}/{{if .Slug}}{{.Slug}}{{else}}{{.ID}}{{end}}">{{.Title}}</a></h2>
+      <p>{{if .Summary}}{{.Summary}}{{else}}阅读全文{{end}}</p>
+      <p class="muted">{{unixTime .PublishedAt}}</p>
+    </article>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">暂无已发布内容。</p>{{end}}
+</section>
+{{end}}

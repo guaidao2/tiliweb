@@ -1,0 +1,60 @@
+{{define "content"}}
+<section class="admin-page">
+  <p class="muted"><a href="{{.BasePath}}/forum">论坛</a> / <a href="{{.BasePath}}/forum/{{.Board.Slug}}">{{.Board.Name}}</a></p>
+  <div class="page-head">
+    <div><h1>{{.Topic.Title}}</h1><p class="muted">发起人 {{.Topic.AuthorName}} · {{unixTime .Topic.CreatedAt}}</p></div>
+    <span class="badge">{{statusLabel .Topic.Status}}{{if .Topic.Pinned}} · 置顶{{end}}</span>
+  </div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Success}}<div class="alert success">{{.Success}}</div>{{end}}
+
+  {{if .CanModerate}}
+  <form class="form form-row" method="post" action="{{.BasePath}}/forum/topic/{{.Topic.ID}}/moderate">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>主题操作
+      <select name="action">
+        <option value="pin">置顶</option><option value="unpin">取消置顶</option>
+        <option value="lock">锁定</option><option value="unlock">解锁</option>
+        <option value="delete">删除</option><option value="restore">恢复</option>
+      </select>
+    </label>
+    <button class="button small" type="submit">执行</button>
+  </form>
+  {{end}}
+
+  {{range .Posts}}
+  <article class="comment">
+    <div class="section-head">
+      <p class="muted">#{{.FloorNo}} · <strong>{{.AuthorName}}</strong> · {{unixTime .CreatedAt}}</p>
+      {{if ne .Status "visible"}}<span class="badge">{{statusLabel .Status}}</span>{{end}}
+    </div>
+    <div class="prose">{{safeHTML .BodyHTML}}</div>
+    {{if $.CanModerate}}
+    <form class="form form-row" method="post" action="{{$.BasePath}}/forum/post/{{.ID}}/moderate">
+      <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+      <label>回复操作
+        <select name="action">
+          <option value="approve">通过</option><option value="hide">隐藏</option>
+          <option value="delete">删除</option><option value="restore">恢复</option>
+        </select>
+      </label>
+      <button class="button small" type="submit">执行</button>
+    </form>
+    {{end}}
+  </article>
+  {{end}}
+
+  {{if and .SignedIn (eq .Topic.Status "open")}}
+  <div class="section-head"><h2>回复</h2></div>
+  <form class="form" method="post" action="{{.BasePath}}/forum/topic/{{.Topic.ID}}/reply">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}">
+    <label>正文 <textarea name="body" rows="6" required></textarea></label>
+    <button class="button" type="submit">发表回复</button>
+  </form>
+  {{else if eq .Topic.Status "locked"}}
+  <p class="muted">该主题已锁定，不能再回复。</p>
+  {{else}}
+  <p class="muted"><a href="{{.BasePath}}/login">登录</a>后可以回复。</p>
+  {{end}}
+</section>
+{{end}}

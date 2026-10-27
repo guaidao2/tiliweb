@@ -1,0 +1,14 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">内容</p><h1>标签</h1></div></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .Tags}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>名称</th><th>别名</th></tr></thead>
+    <tbody>
+      {{range .Tags}}<tr><td>{{.ID}}</td><td>{{.Name}}</td><td><code>{{.Slug}}</code></td></tr>{{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无标签。</p>{{end}}
+</section>
+{{end}}

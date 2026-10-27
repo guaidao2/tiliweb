@@ -1,0 +1,30 @@
+{{define "content"}}
+<section class="admin-page">
+  <div class="page-head"><div><p class="eyebrow">论坛</p><h1>板块</h1></div><a class="button" href="{{.BasePath}}{{.AdminPath}}/forum/boards/new">新建板块</a></div>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  {{if .AdminBoards}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>板块</th><th>可见性</th><th>状态</th><th>主题</th><th>回复</th><th>操作</th></tr></thead>
+    <tbody>
+      {{range .AdminBoards}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td><strong>{{.Name}}</strong><br><code>{{.Slug}}</code></td>
+        <td>{{visibilityLabel .Visibility}}</td>
+        <td><span class="badge">{{statusLabel .Status}}</span></td>
+        <td>{{.TopicCount}}</td><td>{{.ReplyCount}}</td>
+        <td class="table-actions">
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/forum/boards/{{.ID}}/edit">编辑</a>
+          <a class="button small ghost" href="{{$.BasePath}}{{$.AdminPath}}/forum/boards/{{.ID}}/moderators">版主</a>
+          <form class="inline" method="post" action="{{$.BasePath}}{{$.AdminPath}}/forum/boards/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+            <button class="button small danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">暂无板块。</p>{{end}}
+</section>
+{{end}}
