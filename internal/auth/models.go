@@ -15,6 +15,11 @@ var (
 	ErrPending            = errors.New("auth: account pending approval")
 	ErrRegisterDisabled   = errors.New("auth: registration disabled")
 	ErrInvalidInvite      = errors.New("auth: invalid invite")
+	ErrBusy               = errors.New("auth: password service busy")
+	ErrInvalidUsername    = errors.New("auth: invalid username")
+	ErrInvalidEmail       = errors.New("auth: invalid email")
+	ErrPasswordTooShort   = errors.New("auth: password too short")
+	ErrPasswordTooLong    = errors.New("auth: password too long")
 )
 
 type RateLimitError struct {

@@ -189,6 +189,18 @@ func (s *Store) CreateUser(ctx context.Context, username, email, passwordHash, d
 	return s.CreateUserWithInvite(ctx, username, email, passwordHash, displayName, status, nil)
 }
 
+// UserExists reports whether a username or email is already registered.
+// It lets the service reject conflicts before doing expensive Argon2 work.
+func (s *Store) UserExists(ctx context.Context, username, email string) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM users
+			WHERE username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE
+		)`, username, email).Scan(&exists)
+	return exists != 0, err
+}
+
 // CreateUserWithInvite inserts the user and, when inviteID is set, consumes the
 // invite atomically. A used/revoked/expired invite rolls the user back.
 func (s *Store) CreateUserWithInvite(ctx context.Context, username, email, passwordHash, displayName, status string, inviteID *int64) (*User, error) {

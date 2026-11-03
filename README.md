@@ -19,7 +19,7 @@
 - **媒体与上传**：图片 MIME/魔数/大小/像素校验，原图 + 320/768/1280 缩略图，路径穿越防护；附件类型/文件头白名单。
 - **MCP / AI 运维**：stdio + 独立 HTTP 监听，Bearer Token、作用域、写权限开关、调用审计、限流；默认只读。
 - **运维**：可配置监听地址/端口、base path、反代/WAF 适配、健康检查、优雅关闭、日志轮转、SQLite/媒体备份。
-- **硬化**：CSP/HSTS/COOP 等安全头、登录/留言/评论/发帖限流、上传白名单、CSRF、软删除和 CLI 备份。
+- **硬化**：CSP/HSTS/COOP 等安全头、登录/注册/留言/评论/发帖限流、上传白名单、CSRF、软删除和 CLI 备份。注册默认按 IP 限制为 5 次/小时；注册成功后跳转登录页，不再自动建立会话。
 
 ## 快速开始
 
@@ -97,7 +97,7 @@ go run ./cmd/tiliweb serve --dev --config config.yaml
 - `admin.path` / `admin.session_ttl` / `admin.session_idle`
 - `auth.register_enabled` / `auth.register_mode`
 - `site.name` / `site.contact` / `site.seo`
-- `rate_limit.contact_per_hour` / `rate_limit.post_per_minute`
+- `rate_limit.contact_per_hour` / `rate_limit.register_per_hour` / `rate_limit.post_per_minute`
 - `uploads.max_image_bytes` / `uploads.image_max_pixels` / `uploads.max_document_bytes`
 - `mcp.enabled` / `mcp.allow_write` / `mcp.allow_admin_scope`
 

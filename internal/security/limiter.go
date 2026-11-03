@@ -8,6 +8,7 @@ import (
 type lockoutEntry struct {
 	failures int
 	until    time.Time
+	last     time.Time
 }
 
 type rateEntry struct {
@@ -76,6 +77,24 @@ func (l *Limiter) Allow(key, ip string) (bool, time.Duration) {
 	return true, 0
 }
 
+// NoteRate records a per-IP attempt without affecting account lockout. Use it
+// for capacity failures (ErrBusy), which should be throttled but must not lock
+// a legitimate account.
+func (l *Limiter) NoteRate(ip string) {
+	if l == nil || l.rate <= 0 || ip == "" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	r := l.rates[ip]
+	if r.start.IsZero() || now.Sub(r.start) >= l.window {
+		r = rateEntry{start: now}
+	}
+	r.count++
+	l.rates[ip] = r
+}
+
 func (l *Limiter) Fail(key, ip string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -93,6 +112,7 @@ func (l *Limiter) Fail(key, ip string) {
 	if l.threshold > 0 && l.lockout > 0 {
 		e := l.lockouts[key]
 		e.failures++
+		e.last = now
 		if e.failures >= l.threshold {
 			e.until = now.Add(l.lockout)
 			e.failures = 0
@@ -112,7 +132,7 @@ func (l *Limiter) Cleanup() {
 	defer l.mu.Unlock()
 	now := l.now()
 	for k, e := range l.lockouts {
-		if !e.until.After(now) && e.failures == 0 {
+		if !e.until.After(now) && (e.failures == 0 || now.Sub(e.last) >= l.lockout) {
 			delete(l.lockouts, k)
 		}
 	}

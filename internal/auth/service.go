@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/mail"
@@ -17,6 +18,14 @@ import (
 
 var usernameRE = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{2,31}$`)
 
+// Argon2id uses 64 MiB per operation with the default parameters. Keep a
+// small global cap so anonymous or concurrent requests cannot multiply that
+// into an OOM. Queueing is bounded by the request context.
+const maxConcurrentPasswordHashes = 4
+const hashSlotWait = 5 * time.Second
+const maxPasswordLength = 1024
+const maxLoginNameLength = 254
+
 type Service struct {
 	store          *Store
 	cfg            *config.Config
@@ -24,6 +33,7 @@ type Service struct {
 	adminLimiter   *security.Limiter
 	userLimiter    *security.Limiter
 	passwordParams security.PasswordParams
+	hashSlots      chan struct{}
 }
 
 func NewService(db *sql.DB, cfg *config.Config, logger *slog.Logger) *Service {
@@ -45,6 +55,7 @@ func NewService(db *sql.DB, cfg *config.Config, logger *slog.Logger) *Service {
 			cfg.Auth.LoginRatePerMinute,
 		),
 		passwordParams: security.DefaultPasswordParams,
+		hashSlots:      make(chan struct{}, maxConcurrentPasswordHashes),
 	}
 }
 
@@ -53,14 +64,61 @@ func (s *Service) SetPasswordParams(p security.PasswordParams) {
 	s.passwordParams = p
 }
 
+func (s *Service) hashPassword(ctx context.Context, password string) (string, error) {
+	if err := s.acquireHashSlot(ctx); err != nil {
+		return "", hashWaitError(err)
+	}
+	defer s.releaseHashSlot()
+	return security.HashPasswordWithParams(password, s.passwordParams)
+}
+
+func (s *Service) verifyPassword(ctx context.Context, password, encoded string) (bool, error) {
+	if err := s.acquireHashSlot(ctx); err != nil {
+		return false, hashWaitError(err)
+	}
+	defer s.releaseHashSlot()
+	return security.VerifyPassword(password, encoded)
+}
+
+func hashWaitError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return ErrBusy
+	}
+	return err
+}
+
+func (s *Service) acquireHashSlot(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, hashSlotWait)
+	defer cancel()
+	select {
+	case s.hashSlots <- struct{}{}:
+		return nil
+	case <-waitCtx.Done():
+		return waitCtx.Err()
+	}
+}
+
+func (s *Service) releaseHashSlot() {
+	<-s.hashSlots
+}
+
 func (s *Service) Store() *Store {
 	return s.store
+}
+
+// CleanupLimiters drops expired lockout/rate windows. Call periodically.
+func (s *Service) CleanupLimiters() {
+	s.adminLimiter.Cleanup()
+	s.userLimiter.Cleanup()
 }
 
 func (s *Service) CreateAdmin(ctx context.Context, username, password, displayName, role string) (*AdminUser, error) {
 	username = strings.TrimSpace(username)
 	if !usernameRE.MatchString(username) {
-		return nil, fmt.Errorf("username must be 3-32 chars: letters, digits, _, ., -")
+		return nil, fmt.Errorf("%w: 3-32 chars", ErrInvalidUsername)
 	}
 	if role == "" {
 		role = "superadmin"
@@ -69,12 +127,15 @@ func (s *Service) CreateAdmin(ctx context.Context, username, password, displayNa
 		return nil, fmt.Errorf("invalid admin role")
 	}
 	if len(password) < s.cfg.Admin.PasswordMinLength {
-		return nil, fmt.Errorf("password must be at least %d characters", s.cfg.Admin.PasswordMinLength)
+		return nil, fmt.Errorf("%w: minimum %d", ErrPasswordTooShort, s.cfg.Admin.PasswordMinLength)
+	}
+	if len(password) > maxPasswordLength {
+		return nil, ErrPasswordTooLong
 	}
 	if strings.TrimSpace(displayName) == "" {
 		displayName = username
 	}
-	hash, err := security.HashPasswordWithParams(password, s.passwordParams)
+	hash, err := s.hashPassword(ctx, password)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +153,10 @@ func (s *Service) ListAdmins(ctx context.Context) ([]AdminUser, error) {
 
 func (s *Service) AdminLogin(ctx context.Context, username, password, ip, ua string) (*AdminSession, string, error) {
 	username = strings.TrimSpace(username)
+	if username == "" || len(username) > maxLoginNameLength {
+		s.adminLimiter.NoteRate(ip)
+		return nil, "", ErrInvalidCredentials
+	}
 	key := "admin|" + strings.ToLower(username)
 	now := time.Now().UTC().Unix()
 
@@ -100,25 +165,58 @@ func (s *Service) AdminLogin(ctx context.Context, username, password, ip, ua str
 		_ = s.store.Audit(ctx, "system", 0, "admin.login_locked", "admin", 0, ip, metaJSON(map[string]any{"username": username}))
 		return nil, "", &RateLimitError{Wait: wait}
 	}
-
-	admin, err := s.store.AdminByUsername(ctx, username)
-	if err != nil || admin.Status != "active" {
+	if password == "" || len(password) > maxPasswordLength {
 		s.adminLimiter.Fail(key, ip)
 		_ = s.store.RecordLoginAttempt(ctx, "admin", key, ip, false)
 		_ = s.store.Audit(ctx, "system", 0, "admin.login_failed", "admin", 0, ip, metaJSON(map[string]any{"username": username}))
 		return nil, "", ErrInvalidCredentials
 	}
-	ok, err := security.VerifyPassword(password, admin.PasswordHash)
-	if err != nil || !ok {
+
+	admin, err := s.store.AdminByUsername(ctx, username)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			return nil, "", err
+		}
+		// Equalize the nonexistent-admin path with a real password check and
+		// never spend lockout budget on a busy hash queue.
+		if _, derr := s.hashPassword(ctx, password); derr != nil {
+			if errors.Is(derr, ErrBusy) {
+				s.adminLimiter.NoteRate(ip)
+			}
+			return nil, "", derr
+		}
+		s.adminLimiter.Fail(key, ip)
+		_ = s.store.RecordLoginAttempt(ctx, "admin", key, ip, false)
+		_ = s.store.Audit(ctx, "system", 0, "admin.login_failed", "admin", 0, ip, metaJSON(map[string]any{"username": username}))
+		return nil, "", ErrInvalidCredentials
+	}
+	ok, err := s.verifyPassword(ctx, password, admin.PasswordHash)
+	if errors.Is(err, ErrBusy) {
+		s.adminLimiter.NoteRate(ip)
+		return nil, "", ErrBusy
+	}
+	if err != nil {
+		s.logger.Error("admin password verify failed", "error", err, "admin_id", admin.ID)
 		s.adminLimiter.Fail(key, ip)
 		_ = s.store.RecordLoginAttempt(ctx, "admin", key, ip, false)
 		_ = s.store.Audit(ctx, "system", 0, "admin.login_failed", "admin", admin.ID, ip, metaJSON(map[string]any{"username": username}))
 		return nil, "", ErrInvalidCredentials
 	}
+	if !ok {
+		s.adminLimiter.Fail(key, ip)
+		_ = s.store.RecordLoginAttempt(ctx, "admin", key, ip, false)
+		_ = s.store.Audit(ctx, "system", 0, "admin.login_failed", "admin", admin.ID, ip, metaJSON(map[string]any{"username": username}))
+		return nil, "", ErrInvalidCredentials
+	}
+	if admin.Status != "active" {
+		_ = s.store.RecordLoginAttempt(ctx, "admin", key, ip, false)
+		_ = s.store.Audit(ctx, "system", 0, "admin.login_failed", "admin", admin.ID, ip, metaJSON(map[string]any{"username": username, "reason": "inactive"}))
+		return nil, "", ErrInvalidCredentials
+	}
 
 	s.adminLimiter.Success(key)
 	if security.PasswordNeedsRehash(admin.PasswordHash, s.passwordParams) {
-		if hash, err := security.HashPasswordWithParams(password, s.passwordParams); err == nil {
+		if hash, err := s.hashPassword(ctx, password); err == nil {
 			_ = s.store.UpdateAdminPassword(ctx, admin.ID, hash)
 		}
 	}
@@ -183,13 +281,16 @@ func (s *Service) AdminLogout(ctx context.Context, sessionID string) error {
 
 func (s *Service) SetAdminPassword(ctx context.Context, username, password string, actorID int64) error {
 	if len(password) < s.cfg.Admin.PasswordMinLength {
-		return fmt.Errorf("password must be at least %d characters", s.cfg.Admin.PasswordMinLength)
+		return fmt.Errorf("%w: minimum %d", ErrPasswordTooShort, s.cfg.Admin.PasswordMinLength)
+	}
+	if len(password) > maxPasswordLength {
+		return ErrPasswordTooLong
 	}
 	admin, err := s.store.AdminByUsername(ctx, username)
 	if err != nil {
 		return err
 	}
-	hash, err := security.HashPasswordWithParams(password, s.passwordParams)
+	hash, err := s.hashPassword(ctx, password)
 	if err != nil {
 		return err
 	}
@@ -208,13 +309,16 @@ func (s *Service) RegisterUser(ctx context.Context, username, email, password, i
 	username = strings.TrimSpace(username)
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !usernameRE.MatchString(username) {
-		return nil, fmt.Errorf("username must be 3-32 chars: letters, digits, _, ., -")
+		return nil, fmt.Errorf("%w: 3-32 chars", ErrInvalidUsername)
 	}
 	if !validEmail(email) {
-		return nil, fmt.Errorf("invalid email")
+		return nil, ErrInvalidEmail
 	}
 	if len(password) < s.cfg.Auth.PasswordMinLength {
-		return nil, fmt.Errorf("password must be at least %d characters", s.cfg.Auth.PasswordMinLength)
+		return nil, fmt.Errorf("%w: minimum %d", ErrPasswordTooShort, s.cfg.Auth.PasswordMinLength)
+	}
+	if len(password) > maxPasswordLength {
+		return nil, ErrPasswordTooLong
 	}
 
 	mode := s.cfg.Auth.RegisterMode
@@ -232,7 +336,10 @@ func (s *Service) RegisterUser(ctx context.Context, username, email, password, i
 		}
 		invite, err := s.store.InviteByCodeHash(ctx, security.HashToken(code))
 		if err != nil {
-			return nil, ErrInvalidInvite
+			if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrInvalidInvite
+			}
+			return nil, err
 		}
 		now := time.Now().UTC().Unix()
 		if invite.UsedAt != 0 || invite.RevokedAt != 0 || (invite.ExpiresAt != 0 && invite.ExpiresAt <= now) {
@@ -244,7 +351,20 @@ func (s *Service) RegisterUser(ctx context.Context, username, email, password, i
 		return nil, fmt.Errorf("invalid registration mode")
 	}
 
-	hash, err := security.HashPasswordWithParams(password, s.passwordParams)
+	exists, err := s.store.UserExists(ctx, username, email)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		// Keep the conflict path's timing close to a successful registration;
+		// the rate limiter and hash-slot cap bound the cost. Propagate a busy
+		// slot error so conflict and success fail in the same way.
+		if _, err := s.hashPassword(ctx, password); err != nil {
+			return nil, err
+		}
+		return nil, ErrConflict
+	}
+	hash, err := s.hashPassword(ctx, password)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +378,10 @@ func (s *Service) RegisterUser(ctx context.Context, username, email, password, i
 
 func (s *Service) UserLogin(ctx context.Context, username, password, ip, ua string) (*UserSession, string, error) {
 	username = strings.TrimSpace(username)
+	if username == "" || len(username) > maxLoginNameLength {
+		s.userLimiter.NoteRate(ip)
+		return nil, "", ErrInvalidCredentials
+	}
 	key := "user|" + strings.ToLower(username)
 	now := time.Now().UTC().Unix()
 
@@ -265,13 +389,53 @@ func (s *Service) UserLogin(ctx context.Context, username, password, ip, ua stri
 		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
 		return nil, "", &RateLimitError{Wait: wait}
 	}
-
-	user, err := s.findUserForLogin(ctx, username)
-	if err != nil {
+	if password == "" || len(password) > maxPasswordLength {
 		s.userLimiter.Fail(key, ip)
 		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
 		return nil, "", ErrInvalidCredentials
 	}
+
+	user, err := s.findUserForLogin(ctx, username)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			return nil, "", err
+		}
+		// Equalize the expensive path so a nonexistent account cannot be
+		// fingerprinted by response timing. Do not spend lockout budget on a
+		// busy hash queue.
+		if _, derr := s.hashPassword(ctx, password); derr != nil {
+			if errors.Is(derr, ErrBusy) {
+				s.userLimiter.NoteRate(ip)
+			}
+			return nil, "", derr
+		}
+		s.userLimiter.Fail(key, ip)
+		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
+		return nil, "", ErrInvalidCredentials
+	}
+	ok, err := s.verifyPassword(ctx, password, user.PasswordHash)
+	if errors.Is(err, ErrBusy) {
+		s.userLimiter.NoteRate(ip)
+		return nil, "", ErrBusy
+	}
+	if err != nil {
+		s.logger.Error("user password verify failed", "error", err, "user_id", user.ID)
+		s.userLimiter.Fail(key, ip)
+		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
+		_ = s.store.Audit(ctx, "system", 0, "user.login_failed", "user", user.ID, ip, "")
+		return nil, "", ErrInvalidCredentials
+	}
+	if !ok {
+		s.userLimiter.Fail(key, ip)
+		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
+		_ = s.store.Audit(ctx, "system", 0, "user.login_failed", "user", user.ID, ip, "")
+		return nil, "", ErrInvalidCredentials
+	}
+
+	// Status is disclosed only after a successful password check, so an
+	// unauthenticated caller cannot use login as a pending/disabled oracle.
+	// These branches must not consume lockout budget: the password is valid,
+	// and a pending user may retry after approval.
 	if user.Status == "disabled" {
 		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
 		return nil, "", ErrDisabled
@@ -280,17 +444,14 @@ func (s *Service) UserLogin(ctx context.Context, username, password, ip, ua stri
 		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
 		return nil, "", ErrPending
 	}
-	ok, err := security.VerifyPassword(password, user.PasswordHash)
-	if err != nil || !ok {
-		s.userLimiter.Fail(key, ip)
+	if user.Status != "active" {
 		_ = s.store.RecordLoginAttempt(ctx, "user", key, ip, false)
-		_ = s.store.Audit(ctx, "system", 0, "user.login_failed", "user", user.ID, ip, "")
 		return nil, "", ErrInvalidCredentials
 	}
 
 	s.userLimiter.Success(key)
 	if security.PasswordNeedsRehash(user.PasswordHash, s.passwordParams) {
-		if hash, err := security.HashPasswordWithParams(password, s.passwordParams); err == nil {
+		if hash, err := s.hashPassword(ctx, password); err == nil {
 			_ = s.store.UpdateUserPassword(ctx, user.ID, hash)
 		}
 	}
@@ -357,14 +518,24 @@ func (s *Service) ChangeUserPassword(ctx context.Context, userID int64, current,
 	if err != nil {
 		return err
 	}
-	ok, err := security.VerifyPassword(current, user.PasswordHash)
-	if err != nil || !ok {
+	ok, err := s.verifyPassword(ctx, current, user.PasswordHash)
+	if errors.Is(err, ErrBusy) {
+		return ErrBusy
+	}
+	if err != nil {
+		s.logger.Error("user password verify failed", "error", err, "user_id", user.ID)
+		return ErrInvalidCredentials
+	}
+	if !ok {
 		return ErrInvalidCredentials
 	}
 	if len(next) < s.cfg.Auth.PasswordMinLength {
-		return fmt.Errorf("password must be at least %d characters", s.cfg.Auth.PasswordMinLength)
+		return fmt.Errorf("%w: minimum %d", ErrPasswordTooShort, s.cfg.Auth.PasswordMinLength)
 	}
-	hash, err := security.HashPasswordWithParams(next, s.passwordParams)
+	if len(next) > maxPasswordLength {
+		return ErrPasswordTooLong
+	}
+	hash, err := s.hashPassword(ctx, next)
 	if err != nil {
 		return err
 	}
@@ -394,9 +565,12 @@ func (s *Service) SetUserStatus(ctx context.Context, actorAdminID, userID int64,
 
 func (s *Service) ResetUserPassword(ctx context.Context, actorAdminID, userID int64, password string) error {
 	if len(password) < s.cfg.Auth.PasswordMinLength {
-		return fmt.Errorf("password must be at least %d characters", s.cfg.Auth.PasswordMinLength)
+		return fmt.Errorf("%w: minimum %d", ErrPasswordTooShort, s.cfg.Auth.PasswordMinLength)
 	}
-	hash, err := security.HashPasswordWithParams(password, s.passwordParams)
+	if len(password) > maxPasswordLength {
+		return ErrPasswordTooLong
+	}
+	hash, err := s.hashPassword(ctx, password)
 	if err != nil {
 		return err
 	}

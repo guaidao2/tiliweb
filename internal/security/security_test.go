@@ -125,6 +125,21 @@ func TestLimiterSuccessClearsLockout(t *testing.T) {
 	}
 }
 
+func TestLimiterCleanupExpiresIdleFailures(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	l := NewLimiter(5, time.Minute, 10)
+	l.now = func() time.Time { return now }
+	l.Fail("user|alice", "127.0.0.1")
+	if len(l.lockouts) != 1 {
+		t.Fatalf("lockouts = %d", len(l.lockouts))
+	}
+	now = now.Add(2 * time.Minute)
+	l.Cleanup()
+	if len(l.lockouts) != 0 {
+		t.Fatalf("idle lockout not cleaned: %+v", l.lockouts)
+	}
+}
+
 func TestCSRFDoubleSubmit(t *testing.T) {
 	csrf := NewCSRF("tili_csrf", "/", false)
 	rec := httptest.NewRecorder()

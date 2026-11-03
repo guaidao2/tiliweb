@@ -133,6 +133,14 @@ func authErrorMessage(err error) string {
 		return "邀请码无效、已过期或已被使用。"
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		return "用户名或密码错误。"
+	case errors.Is(err, auth.ErrBusy):
+		return "密码服务繁忙，请稍后再试。"
+	case errors.Is(err, auth.ErrInvalidUsername):
+		return "用户名格式不正确：3-32 位字母、数字、下划线、点或短横线。"
+	case errors.Is(err, auth.ErrInvalidEmail):
+		return "邮箱格式不正确。"
+	case errors.Is(err, auth.ErrPasswordTooShort), errors.Is(err, auth.ErrPasswordTooLong):
+		return "密码长度不符合要求。"
 	}
 	var rl *auth.RateLimitError
 	if errors.As(err, &rl) {
@@ -141,10 +149,59 @@ func authErrorMessage(err error) string {
 		}
 		return "尝试过于频繁，请稍后再试。"
 	}
-	return err.Error()
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "username must be"):
+		return "用户名格式不正确：3-32 位字母、数字、下划线、点或短横线。"
+	case strings.Contains(msg, "invalid email"):
+		return "邮箱格式不正确。"
+	case strings.Contains(msg, "password must be at least"):
+		return "密码长度不符合要求。"
+	case strings.Contains(msg, "password is too long"):
+		return "密码长度不符合要求。"
+	}
+	return "操作暂时不可用，请稍后再试。"
+}
+
+// logAuthError records unexpected auth failures without exposing their
+// details to the anonymous caller. Expected input/auth outcomes stay quiet.
+func (s *Server) logAuthError(r *http.Request, err error) {
+	if isExpectedAuthError(err) {
+		return
+	}
+	s.logger.Error("auth request failed", "error", err, "request_id", requestIDFromContext(r.Context()))
+}
+
+func isExpectedAuthError(err error) bool {
+	switch {
+	case errors.Is(err, auth.ErrPending),
+		errors.Is(err, auth.ErrDisabled),
+		errors.Is(err, auth.ErrRegisterDisabled),
+		errors.Is(err, auth.ErrConflict),
+		errors.Is(err, auth.ErrInvalidInvite),
+		errors.Is(err, auth.ErrInvalidCredentials),
+		errors.Is(err, auth.ErrBusy),
+		errors.Is(err, auth.ErrInvalidUsername),
+		errors.Is(err, auth.ErrInvalidEmail),
+		errors.Is(err, auth.ErrPasswordTooShort),
+		errors.Is(err, auth.ErrPasswordTooLong):
+		return true
+	}
+	var rl *auth.RateLimitError
+	if errors.As(err, &rl) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "username must be") ||
+		strings.Contains(msg, "invalid email") ||
+		strings.Contains(msg, "password must be at least") ||
+		strings.Contains(msg, "password is too long")
 }
 
 func authStatus(err error) int {
+	if errors.Is(err, auth.ErrBusy) {
+		return http.StatusServiceUnavailable
+	}
 	var rl *auth.RateLimitError
 	if errors.As(err, &rl) {
 		return http.StatusTooManyRequests
@@ -153,6 +210,9 @@ func authStatus(err error) int {
 }
 
 func registerStatus(err error) int {
+	if errors.Is(err, auth.ErrBusy) {
+		return http.StatusServiceUnavailable
+	}
 	var rl *auth.RateLimitError
 	if errors.As(err, &rl) {
 		return http.StatusTooManyRequests
@@ -188,6 +248,7 @@ func (s *Server) loginPost(w http.ResponseWriter, r *http.Request) {
 	_, token, err := s.auth.UserLogin(r.Context(), username, password,
 		clientIPFromContext(r.Context()), r.UserAgent())
 	if err != nil {
+		s.logAuthError(r, err)
 		data := s.pageData(r, "Sign in", "")
 		data.Error = authErrorMessage(err)
 		data.Next = next
@@ -218,6 +279,14 @@ func (s *Server) registerPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) registerPost(w http.ResponseWriter, r *http.Request) {
+	ip := clientIPFromContext(r.Context())
+	if s.registerLimiter != nil && !s.registerLimiter.allow(ip) {
+		data := s.pageData(r, "Create account", "")
+		data.Error = "注册请求过于频繁，请稍后再试。"
+		w.Header().Set("Retry-After", "3600")
+		s.renderSite(w, r, "site/register", data, http.StatusTooManyRequests)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
@@ -227,26 +296,58 @@ func (s *Server) registerPost(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 	invite := strings.TrimSpace(r.PostFormValue("invite"))
 
-	user, err := s.auth.RegisterUser(r.Context(), username, email, password, invite, clientIPFromContext(r.Context()))
+	user, err := s.auth.RegisterUser(r.Context(), username, email, password, invite, ip)
+	if s.registerLimiter != nil && err != nil && !registerAttemptCounts(err) {
+		s.registerLimiter.refund(ip)
+	}
 	if err != nil {
+		if errors.Is(err, auth.ErrConflict) {
+			// Do not turn registration into a username/email oracle. Both a
+			// real pending registration and a conflict follow the same
+			// redirect; the rate limiter above bounds probing.
+			s.redirectAfterRegistration(w, r, s.cfg.Auth.RegisterMode == "approval")
+			return
+		}
+		s.logAuthError(r, err)
 		data := s.pageData(r, "Create account", "")
 		data.Error = authErrorMessage(err)
 		s.renderSite(w, r, "site/register", data, registerStatus(err))
 		return
 	}
-	if user.Status == "pending" {
-		http.Redirect(w, r, s.frontURL("login")+"?registered=pending", http.StatusSeeOther)
-		return
-	}
+	s.redirectAfterRegistration(w, r, user.Status == "pending")
+}
 
-	_, token, err := s.auth.UserLogin(r.Context(), username, password,
-		clientIPFromContext(r.Context()), r.UserAgent())
-	if err != nil {
-		http.Redirect(w, r, s.frontURL("login")+"?registered=done", http.StatusSeeOther)
-		return
+func (s *Server) redirectAfterRegistration(w http.ResponseWriter, r *http.Request, pending bool) {
+	target := s.frontURL("login") + "?registered=done"
+	if pending {
+		target = s.frontURL("login") + "?registered=pending"
 	}
-	s.setUserCookie(w, token)
-	http.Redirect(w, r, s.frontURL("account"), http.StatusSeeOther)
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// registerAttemptCounts keeps cheap input validation from exhausting the
+// registration budget while still counting real account-creation attempts.
+func registerAttemptCounts(err error) bool {
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, auth.ErrRegisterDisabled) {
+		return false
+	}
+	if errors.Is(err, auth.ErrConflict) || errors.Is(err, auth.ErrInvalidInvite) || errors.Is(err, auth.ErrBusy) {
+		return true
+	}
+	if errors.Is(err, auth.ErrInvalidUsername) ||
+		errors.Is(err, auth.ErrInvalidEmail) ||
+		errors.Is(err, auth.ErrPasswordTooShort) ||
+		errors.Is(err, auth.ErrPasswordTooLong) {
+		return false
+	}
+	msg := err.Error()
+	return !strings.Contains(msg, "username must be") &&
+		!strings.Contains(msg, "invalid email") &&
+		!strings.Contains(msg, "password must be at least") &&
+		!strings.Contains(msg, "password is too long")
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
@@ -274,9 +375,14 @@ func (s *Server) accountPasswordPost(w http.ResponseWriter, r *http.Request) {
 	current := r.PostFormValue("current_password")
 	next := r.PostFormValue("new_password")
 	if err := s.auth.ChangeUserPassword(r.Context(), user.UserID, current, next, user.ID); err != nil {
+		s.logAuthError(r, err)
 		data := s.pageData(r, "Change password", "")
 		data.Error = authErrorMessage(err)
-		s.renderSite(w, r, "site/account_password", data, http.StatusBadRequest)
+		status := http.StatusBadRequest
+		if errors.Is(err, auth.ErrBusy) {
+			status = http.StatusServiceUnavailable
+		}
+		s.renderSite(w, r, "site/account_password", data, status)
 		return
 	}
 	http.Redirect(w, r, s.frontURL("account")+"?password=1", http.StatusSeeOther)
@@ -301,6 +407,7 @@ func (s *Server) adminLoginPost(w http.ResponseWriter, r *http.Request) {
 	_, token, err := s.auth.AdminLogin(r.Context(), username, password,
 		clientIPFromContext(r.Context()), r.UserAgent())
 	if err != nil {
+		s.logAuthError(r, err)
 		data := s.pageData(r, "Admin sign in", "")
 		data.Error = authErrorMessage(err)
 		if rl, ok := err.(*auth.RateLimitError); ok {
@@ -388,9 +495,15 @@ func (s *Server) adminUserPassword(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminUsersError(w http.ResponseWriter, r *http.Request, err error) {
 	data := s.pageData(r, "Users", "")
-	data.Error = err.Error()
+	status := http.StatusBadRequest
+	if errors.Is(err, auth.ErrBusy) {
+		data.Error = "密码服务繁忙，请稍后再试。"
+		status = http.StatusServiceUnavailable
+	} else {
+		data.Error = err.Error()
+	}
 	data.Users, _ = s.auth.ListUsers(r.Context())
-	s.renderAdmin(w, r, "admin/users", data, http.StatusBadRequest)
+	s.renderAdmin(w, r, "admin/users", data, status)
 }
 
 func (s *Server) adminInvites(w http.ResponseWriter, r *http.Request) {

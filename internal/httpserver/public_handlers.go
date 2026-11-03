@@ -332,13 +332,7 @@ func (l *contactLimiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	if len(l.hits) > 1024 {
-		for k, h := range l.hits {
-			if now.Sub(h.start) >= l.window {
-				delete(l.hits, k)
-			}
-		}
-	}
+	l.pruneLocked(now)
 	h := l.hits[key]
 	if h.start.IsZero() || now.Sub(h.start) >= l.window {
 		h = contactHit{start: now}
@@ -349,4 +343,47 @@ func (l *contactLimiter) allow(key string) bool {
 	h.count++
 	l.hits[key] = h
 	return true
+}
+
+// refund returns a previously reserved hit after cheap input validation.
+func (l *contactLimiter) refund(key string) {
+	if l == nil || l.max <= 0 {
+		return
+	}
+	if key == "" {
+		key = "unknown"
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	h := l.hits[key]
+	if h.count > 0 {
+		h.count--
+		l.hits[key] = h
+	}
+}
+
+func (l *contactLimiter) pruneLocked(now time.Time) {
+	if len(l.hits) <= 1024 {
+		return
+	}
+	for k, h := range l.hits {
+		if now.Sub(h.start) >= l.window {
+			delete(l.hits, k)
+		}
+	}
+}
+
+// cleanup drops expired windows; call it periodically for long-running servers.
+func (l *contactLimiter) cleanup() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	for k, h := range l.hits {
+		if now.Sub(h.start) >= l.window {
+			delete(l.hits, k)
+		}
+	}
 }

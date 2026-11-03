@@ -23,19 +23,20 @@ import (
 )
 
 type Server struct {
-	cfg            *config.Config
-	db             *sql.DB
-	view           *view.Loader
-	auth           *auth.Service
-	content        *content.Service
-	forum          *forum.Service
-	site           *site.Store
-	csrfSvc        *security.CSRF
-	logger         *slog.Logger
-	handler        http.Handler
-	trusted        []ipRange
-	contactLimiter *contactLimiter
-	postLimiter    *contactLimiter
+	cfg             *config.Config
+	db              *sql.DB
+	view            *view.Loader
+	auth            *auth.Service
+	content         *content.Service
+	forum           *forum.Service
+	site            *site.Store
+	csrfSvc         *security.CSRF
+	logger          *slog.Logger
+	handler         http.Handler
+	trusted         []ipRange
+	contactLimiter  *contactLimiter
+	postLimiter     *contactLimiter
+	registerLimiter *contactLimiter
 
 	adminCookiePath string
 	frontCookiePath string
@@ -77,9 +78,11 @@ func New(cfg *config.Config, db *sql.DB, v *view.Loader, authSvc *auth.Service, 
 	}
 	contactLimit := 0
 	postLimit := 0
+	registerLimit := 0
 	if cfg.RateLimit.Enabled {
 		contactLimit = cfg.RateLimit.ContactPerHour
 		postLimit = cfg.RateLimit.PostPerMinute
+		registerLimit = cfg.RateLimit.RegisterPerHour
 	}
 
 	s := &Server{
@@ -97,6 +100,7 @@ func New(cfg *config.Config, db *sql.DB, v *view.Loader, authSvc *auth.Service, 
 		frontCookiePath: frontCookiePath,
 		contactLimiter:  newContactLimiter(contactLimit),
 		postLimiter:     newWindowLimiter(postLimit, time.Minute),
+		registerLimiter: newWindowLimiter(registerLimit, time.Hour),
 	}
 
 	siteMux := http.NewServeMux()
@@ -233,6 +237,23 @@ func New(cfg *config.Config, db *sql.DB, v *view.Loader, authSvc *auth.Service, 
 
 func (s *Server) Handler() http.Handler {
 	return s.handler
+}
+
+// CleanupLoop periodically drops expired in-memory limiter windows.
+func (s *Server) CleanupLoop(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.auth.CleanupLimiters()
+			s.contactLimiter.cleanup()
+			s.postLimiter.cleanup()
+			s.registerLimiter.cleanup()
+		}
+	}
 }
 
 func (s *Server) rootHandler(site *http.ServeMux) http.Handler {

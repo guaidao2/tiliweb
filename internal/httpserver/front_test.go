@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"tiliweb/internal/auth"
 	"tiliweb/internal/config"
 )
 
@@ -30,8 +31,23 @@ func TestFrontRegisterOpenAndAccount(t *testing.T) {
 	req.AddCookie(csrfCookie)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account" {
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login?registered=done" {
 		t.Fatalf("register status=%d location=%q body=%s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+
+	csrf, csrfCookie = getPageCSRF(t, s, "/login")
+	form = url.Values{
+		"_csrf":    {csrf},
+		"username": {"alice"},
+		"password": {"password123"},
+	}
+	req = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(csrfCookie)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account" {
+		t.Fatalf("login status=%d location=%q body=%s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 	userCookie := cookieFromRec(t, rec, s.cfg.Auth.CookieName)
 	if userCookie == nil {
@@ -179,7 +195,7 @@ func TestFrontInviteRegistration(t *testing.T) {
 	req.AddCookie(csrfCookie)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account" {
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login?registered=done" {
 		t.Fatalf("invite register status=%d location=%q body=%s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 
@@ -264,6 +280,174 @@ func TestFrontBasePath(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `action="/cms/login"`) {
 		t.Fatalf("base path login action missing: %s", rec.Body.String())
+	}
+}
+
+func TestRegisterRateLimit(t *testing.T) {
+	s, cleanup := newTestServer(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "open"
+		cfg.RateLimit.RegisterPerHour = 1
+	})
+	defer cleanup()
+
+	csrf, csrfCookie := getPageCSRF(t, s, "/register")
+	post := func(username, email string) *httptest.ResponseRecorder {
+		form := url.Values{
+			"_csrf":    {csrf},
+			"username": {username},
+			"email":    {email},
+			"password": {"password123"},
+		}
+		req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(csrfCookie)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := post("alice", "alice@example.com")
+	if first.Code != http.StatusSeeOther || first.Header().Get("Location") != "/login?registered=done" {
+		t.Fatalf("first register status=%d location=%q", first.Code, first.Header().Get("Location"))
+	}
+	second := post("bob", "bob@example.com")
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second register status=%d body=%s", second.Code, second.Body.String())
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("rate limit response missing Retry-After")
+	}
+}
+
+func TestRegisterConflictIsGeneric(t *testing.T) {
+	s, cleanup := newTestServer(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "open"
+	})
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := s.auth.RegisterUser(ctx, "alice", "alice@example.com", "password123", "", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	csrf, csrfCookie := getPageCSRF(t, s, "/register")
+	form := url.Values{
+		"_csrf":    {csrf},
+		"username": {"alice"},
+		"email":    {"other@example.com"},
+		"password": {"password123"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(csrfCookie)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login?registered=done" {
+		t.Fatalf("conflict response status=%d location=%q", rec.Code, rec.Header().Get("Location"))
+	}
+	users, err := s.auth.ListUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 1 {
+		t.Fatalf("conflict created a user: %+v", users)
+	}
+}
+
+func TestPendingLoginWrongPasswordIsGeneric(t *testing.T) {
+	s, cleanup := newTestServer(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "approval"
+	})
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := s.auth.RegisterUser(ctx, "bob", "bob@example.com", "password123", "", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	csrf, csrfCookie := getPageCSRF(t, s, "/login")
+	form := url.Values{"_csrf": {csrf}, "username": {"bob"}, "password": {"wrong-password"}}
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(csrfCookie)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong password status=%d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "用户名或密码错误") || strings.Contains(body, "等待管理员审批") {
+		t.Fatalf("pending status leaked before password check: %s", body)
+	}
+}
+
+func TestBusyStatusMapping(t *testing.T) {
+	if got := authStatus(auth.ErrBusy); got != http.StatusServiceUnavailable {
+		t.Fatalf("authStatus(ErrBusy) = %d", got)
+	}
+	if got := registerStatus(auth.ErrBusy); got != http.StatusServiceUnavailable {
+		t.Fatalf("registerStatus(ErrBusy) = %d", got)
+	}
+}
+
+func TestEmptyPasswordDoesNotEnumerate(t *testing.T) {
+	s, cleanup := newTestServer(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "approval"
+	})
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := s.auth.RegisterUser(ctx, "alice", "alice@example.com", "password123", "", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.auth.CreateAdmin(ctx, "admin", "password123", "Admin", "superadmin"); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(path string, form url.Values) string {
+		t.Helper()
+		csrf, cookie := getPageCSRF(t, s, path)
+		form.Set("_csrf", csrf)
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d", path, rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "用户名或密码错误") {
+			t.Fatalf("%s missing generic error: %s", path, body)
+		}
+		if strings.Contains(body, "操作暂时不可用") || strings.Contains(body, "等待管理员审批") {
+			t.Fatalf("%s leaked a different error path: %s", path, body)
+		}
+		return body
+	}
+
+	userExisting := check("/login", url.Values{"username": {"alice"}, "password": {""}})
+	userMissing := check("/login", url.Values{"username": {"nobody"}, "password": {""}})
+	if len(userExisting) == 0 || len(userMissing) == 0 {
+		t.Fatal("empty response")
+	}
+
+	adminExisting := check("/admin/login", url.Values{"username": {"admin"}, "password": {""}})
+	adminMissing := check("/admin/login", url.Values{"username": {"ghost"}, "password": {""}})
+	if len(adminExisting) == 0 || len(adminMissing) == 0 {
+		t.Fatal("empty admin response")
+	}
+}
+
+func TestContactLimiterRefund(t *testing.T) {
+	l := newWindowLimiter(1, time.Hour)
+	if !l.allow("ip") {
+		t.Fatal("first allow rejected")
+	}
+	if l.allow("ip") {
+		t.Fatal("second allow should be rejected")
+	}
+	l.refund("ip")
+	if !l.allow("ip") {
+		t.Fatal("refund did not restore capacity")
 	}
 }
 

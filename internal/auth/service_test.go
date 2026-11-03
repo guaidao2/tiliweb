@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,6 +78,217 @@ func TestAdminWrongPasswordAndLockout(t *testing.T) {
 	var rl *RateLimitError
 	if !errors.As(err, &rl) {
 		t.Fatalf("expected rate limit, got %v", err)
+	}
+}
+
+func TestHashBusyDoesNotConsumeLoginLockout(t *testing.T) {
+	svc, cleanup := newTestService(t, func(cfg *config.Config) {
+		cfg.Auth.LockoutThreshold = 1
+		cfg.Admin.LockoutThreshold = 1
+	})
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := svc.RegisterUser(ctx, "alice", "alice@example.com", "password123", "", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateAdmin(ctx, "admin", "password123", "Admin", "superadmin"); err != nil {
+		t.Fatal(err)
+	}
+
+	fill := func() {
+		for i := 0; i < maxConcurrentPasswordHashes; i++ {
+			svc.hashSlots <- struct{}{}
+		}
+	}
+	drain := func() {
+		for i := 0; i < maxConcurrentPasswordHashes; i++ {
+			<-svc.hashSlots
+		}
+	}
+
+	fill()
+	busy, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	_, _, err := svc.UserLogin(busy, "alice", "password123", "127.0.0.1", "test")
+	cancel()
+	if !errors.Is(err, ErrBusy) {
+		t.Fatalf("user busy login = %v", err)
+	}
+	drain()
+	if _, _, err := svc.UserLogin(ctx, "alice", "password123", "127.0.0.1", "test"); err != nil {
+		t.Fatalf("user was locked after busy: %v", err)
+	}
+
+	fill()
+	busy, cancel = context.WithTimeout(ctx, 10*time.Millisecond)
+	_, _, err = svc.AdminLogin(busy, "admin", "password123", "127.0.0.1", "test")
+	cancel()
+	if !errors.Is(err, ErrBusy) {
+		t.Fatalf("admin busy login = %v", err)
+	}
+	drain()
+	if _, _, err := svc.AdminLogin(ctx, "admin", "password123", "127.0.0.1", "test"); err != nil {
+		t.Fatalf("admin was locked after busy: %v", err)
+	}
+}
+
+func TestPasswordLengthLimit(t *testing.T) {
+	svc, cleanup := newTestService(t, nil)
+	defer cleanup()
+	ctx := context.Background()
+	long := strings.Repeat("a", maxPasswordLength+1)
+
+	if _, err := svc.RegisterUser(ctx, "alice", "alice@example.com", long, "", "127.0.0.1"); err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("long registration password = %v", err)
+	}
+	if _, err := svc.CreateAdmin(ctx, "admin", long, "Admin", "superadmin"); err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("long admin password = %v", err)
+	}
+	user, err := svc.RegisterUser(ctx, "bob", "bob@example.com", "password123", "", "127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.ChangeUserPassword(ctx, user.ID, "password123", long, ""); err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("long changed password = %v", err)
+	}
+	if err := svc.ResetUserPassword(ctx, 0, user.ID, long); err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("long reset password = %v", err)
+	}
+}
+
+func TestDisabledUserAndInactiveAdminLogin(t *testing.T) {
+	svc, cleanup := newTestService(t, nil)
+	defer cleanup()
+	ctx := context.Background()
+
+	user, err := svc.RegisterUser(ctx, "alice", "alice@example.com", "password123", "", "127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SetUserStatus(ctx, 0, user.ID, "disabled"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.UserLogin(ctx, "alice", "password123", "127.0.0.1", "test"); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("disabled user login = %v", err)
+	}
+
+	admin, err := svc.CreateAdmin(ctx, "admin", "password123", "Admin", "superadmin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.store.SetAdminStatus(ctx, admin.ID, "disabled"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.AdminLogin(ctx, "admin", "password123", "127.0.0.1", "test"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("inactive admin login = %v", err)
+	}
+}
+
+func TestStoreErrorIsNotInvalidCredentials(t *testing.T) {
+	svc, cleanup := newTestService(t, nil)
+	defer cleanup()
+	ctx := context.Background()
+
+	if err := svc.store.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.UserLogin(ctx, "alice", "password123", "127.0.0.1", "test"); err == nil ||
+		errors.Is(err, ErrInvalidCredentials) || errors.Is(err, ErrBusy) {
+		t.Fatalf("user store error = %v", err)
+	}
+	if _, _, err := svc.AdminLogin(ctx, "admin", "password123", "127.0.0.1", "test"); err == nil ||
+		errors.Is(err, ErrInvalidCredentials) || errors.Is(err, ErrBusy) {
+		t.Fatalf("admin store error = %v", err)
+	}
+}
+
+func TestBusyCountsRateButNotLockout(t *testing.T) {
+	svc, cleanup := newTestService(t, func(cfg *config.Config) {
+		cfg.Auth.LoginRatePerMinute = 1
+		cfg.Auth.LockoutThreshold = 100
+	})
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := svc.RegisterUser(ctx, "alice", "alice@example.com", "password123", "", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxConcurrentPasswordHashes; i++ {
+		svc.hashSlots <- struct{}{}
+	}
+	busy, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	_, _, err := svc.UserLogin(busy, "alice", "password123", "127.0.0.1", "test")
+	cancel()
+	if !errors.Is(err, ErrBusy) {
+		t.Fatalf("busy login = %v", err)
+	}
+	for i := 0; i < maxConcurrentPasswordHashes; i++ {
+		<-svc.hashSlots
+	}
+
+	_, _, err = svc.UserLogin(ctx, "alice", "password123", "127.0.0.1", "test")
+	var rl *RateLimitError
+	if !errors.As(err, &rl) {
+		t.Fatalf("busy attempt did not count against rate limit: %v", err)
+	}
+}
+
+func TestRegisterStoreErrorsNotMasked(t *testing.T) {
+	ctx := context.Background()
+
+	inviteSvc, inviteCleanup := newTestService(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "invite"
+	})
+	defer inviteCleanup()
+	if err := inviteSvc.store.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inviteSvc.RegisterUser(ctx, "alice", "alice@example.com", "password123", "code", "127.0.0.1"); err == nil || errors.Is(err, ErrInvalidInvite) {
+		t.Fatalf("invite store error was masked: %v", err)
+	}
+
+	openSvc, openCleanup := newTestService(t, func(cfg *config.Config) {
+		cfg.Auth.RegisterMode = "open"
+	})
+	defer openCleanup()
+	if err := openSvc.store.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := openSvc.RegisterUser(ctx, "bob", "bob@example.com", "password123", "", "127.0.0.1"); err == nil || errors.Is(err, ErrConflict) {
+		t.Fatalf("UserExists store error was masked: %v", err)
+	}
+}
+
+func TestNonexistentLoginIsInvalidCredentials(t *testing.T) {
+	svc, cleanup := newTestService(t, nil)
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, _, err := svc.UserLogin(ctx, "ghost", "password123", "127.0.0.1", "test"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("nonexistent user login = %v", err)
+	}
+	if _, _, err := svc.AdminLogin(ctx, "ghost", "password123", "127.0.0.1", "test"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("nonexistent admin login = %v", err)
+	}
+}
+
+func TestHashSlotBusy(t *testing.T) {
+	svc, cleanup := newTestService(t, nil)
+	defer cleanup()
+
+	for i := 0; i < maxConcurrentPasswordHashes; i++ {
+		svc.hashSlots <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < maxConcurrentPasswordHashes; i++ {
+			<-svc.hashSlots
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := svc.hashPassword(ctx, "password123"); !errors.Is(err, ErrBusy) {
+		t.Fatalf("hash slot busy = %v", err)
 	}
 }
 

@@ -102,6 +102,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+	go web.CleanupLoop(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Server.Listen,
